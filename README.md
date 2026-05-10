@@ -16,7 +16,6 @@ Tính năng nổi bật
   - Đưa ra đề xuất nhập hàng và các cảnh báo dựa trên phân tích xu hướng.
 
 ## Cấu trúc thư mục
-```text
 supermarket-ai-analytics/
 ├── data/                       
 │   ├── raw/                    # Dữ liệu gốc (CSV/Excel)
