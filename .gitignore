@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Môi trường ảo
+venv/
+env/
+.idea/
+
+# Dữ liệu
+data/raw/
+data/processed/
+*.csv
+*.xlsx
+*.json
+!data/sample_data.csv
+
+# Bảo mật
+.env
