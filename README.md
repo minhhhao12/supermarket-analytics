@@ -1,26 +1,26 @@
 
 ```markdown
-# 🛒 Supermarket Analytics: Ứng dụng Phân tích Dữ liệu và Trợ lý GenAI
+# Supermarket Analytics: Ứng dụng Phân tích Dữ liệu và Trợ lý GenAI
 
-## 📖 Giới thiệu (Overview)
+## Giới thiệu (Overview)
 Hệ thống giúp các nhà quản lý chuỗi siêu thị dễ dàng theo dõi hiệu suất bán hàng, nắm bắt xu hướng thị trường và tương tác trực tiếp với dữ liệu thông qua một Trợ lý AI thông minh, hỗ trợ đưa ra các quyết định kinh doanh.
 
 Tính năng nổi bật
 - Phân tích Kinh doanh:
   - Đánh giá doanh thu, lợi nhuận theo từng chi nhánh, khoảng thời gian.
-  - Phân tích giỏ hàng, nhận diện các mặt hàng bán chạy (Best-sellers).
-  - Trực quan hóa dữ liệu bằng các biểu đồ tương tác (Interactive Charts).
+  - Phân tích giỏ hàng, nhận diện các mặt hàng bán chạy.
+  - Trực quan hóa dữ liệu bằng các biểu đồ tương tác.
 - Trợ lý AI Thông minh:
   - Hỏi đáp dữ liệu kinh doanh bằng ngôn ngữ tự nhiên.
   - Tự động tóm tắt báo cáo kinh doanh hàng tháng.
   - Đưa ra đề xuất nhập hàng và các cảnh báo dựa trên phân tích xu hướng.
 
-## 📁 Cấu trúc thư mục (Project Structure)
+## Cấu trúc thư mục
 ```text
 supermarket-ai-analytics/
 ├── data/                       
 │   ├── raw/                    # Dữ liệu gốc (CSV/Excel)
-│   └── processed/              # Dữ liệu đã qua làm sạch (Cleaned data)
+│   └── processed/              # Dữ liệu đã qua làm sạch 
 ├── notebooks/                  
 │   └── 01_exploratory_data_analysis.ipynb  # File EDA nháp
 ├── src/                        
@@ -40,7 +40,7 @@ supermarket-ai-analytics/
 
 ##  Công nghệ sử dụng
 
-* **Ngôn ngữ:** Python 3.x
+* **Ngôn ngữ:** Python 3.10
 * **Xử lý dữ liệu:** Pandas, NumPy
 * **Trực quan hóa:** Matplotlib, Seaborn (hoặc Plotly)
 * **Giao diện (UI):** Streamlit / Dash 
@@ -54,7 +54,7 @@ supermarket-ai-analytics/
 Mở Terminal/Command Prompt và chạy lệnh sau:
 
 ```bash
-git clone [https://github.com/minhhhao12/supermarket-ai-analytics.git](https://github.com/your-username/supermarket-ai-analytics.git)
+git clone [https://github.com/minhhhao12/supermarket-analytics.git](https://github.com/minhhhao12/supermarket-analytics.git)
 cd supermarket-analytics
 
 ```
