@@ -1,6 +1,3 @@
-# TODO 1: Viết hàm load_csv() và load_excel() sử dụng thư viện pandas để đọc file từ thư mục data/raw/.
-# TODO 2: Thêm logic try...except để báo lỗi nếu đường dẫn file không tồn tại.
-# TODO 3: Viết hàm kiểm tra xem dữ liệu nạp vào có bị trống không (trả về lỗi nếu file rỗng).
 import pandas as pd
 import os
 from pandas import DataFrame
