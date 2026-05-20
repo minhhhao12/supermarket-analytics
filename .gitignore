@@ -8,12 +8,12 @@ env/
 .idea/
 
 # Dữ liệu
-data/raw/
-data/processed/
-*.csv
-*.xlsx
-*.json
-!data/sample_data.csv
+#data/raw/
+#data/processed/
+#*.csv
+#*.xlsx
+#*.json
+#!data/sample_data.csv
 
 # Bảo mật
 .env
