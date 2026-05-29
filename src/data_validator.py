@@ -94,15 +94,14 @@ class DataValidator:
 if __name__ == "__main__":
     file_path = "data/raw/supermarket_data_sales.csv"
 
-    # Nhiệm vụ đọc file được trả về đúng vị trí ở hàm main này
     try:
-        # 1. Đọc file lấy DataFrame trước
+        # Đọc file lấy DataFrame trước
         df_raw = pd.read_csv(file_path)
 
-        # 2. Truyền thẳng DataFrame vào class Validator để khởi tạo đối tượng
+        # Truyền thẳng DataFrame vào class Validator để khởi tạo đối tượng
         validator = DataValidator(df=df_raw, tax_rate=0.1)
 
-        # 3. Tiến hành quét lỗi
+        # Tiến hành quét lỗi
         ket_qua = validator.run_all_validators()
 
         if ket_qua["is_valid"]:
