@@ -2,30 +2,15 @@ import pandas as pd
 
 
 class DataValidator:
-    """Lớp chịu trách nhiệm đọc và kiểm tra chất lượng dữ liệu siêu thị"""
+    # Lớp chịu trách nhiệm kiểm tra chất lượng dữ liệu siêu thị
 
-    def __init__(self, file_path, tax_rate=0.1):
-        # Hàm khởi tạo các thuộc tính cơ bản của Lớp (đường dẫn file và thuế suất)
-        self.file_path = file_path
+    def __init__(self, df, tax_rate=0.1):
+        # Hàm khởi tạo nhận vào trực tiếp một DataFrame và thuế suất
+        self.df = df
         self.tax_rate = tax_rate
-        self.df = None  # Bảng dữ liệu sẽ được nạp vào đây sau khi đọc file thành công
-
-    def load_data(self):
-        """Đọc file CSV vào bộ nhớ"""
-        try:
-            self.df = pd.read_csv(self.file_path)
-            return True
-        except FileNotFoundError:
-            print(f"Không tìm thấy file tại đường dẫn: {self.file_path}")
-            return False
-        except Exception as e:
-            print(f"Đã xảy ra lỗi khi đọc file: {e}")
-            return False
 
     def validate_raw_data(self):
-        """Kiểm tra các lỗi vật lý cơ bản liên quan đến giá trị âm hoặc thiếu cột
-           Gồm: Quantity <= 0, Unit price < 0, Sales < 0 và thiếu cột bắt buộc
-        """
+        # Kiểm tra các lỗi vật lý cơ bản liên quan đến giá trị âm hoặc thiếu cột
         errors = []
         required_cols = ["Quantity", "Unit price", "Sales"]
         missing_cols = []
@@ -65,8 +50,7 @@ class DataValidator:
         return errors
 
     def check_currency_logic(self):
-        """Kiểm tra tính đúng đắn của logic tính toán tiền tệ dựa trên thuế suất
-           Doanh thu lý thuyết = Quantity * Unit price * (1 + tax_rate)"""
+        # Kiểm tra tính đúng đắn của logic tính toán tiền tệ dựa trên thuế suất
         errors = []
 
         if (
@@ -93,9 +77,7 @@ class DataValidator:
         return errors
 
     def run_all_validators(self):
-        """Phương thức tổng hợp chạy toàn bộ các bước kiểm tra dữ liệu
-           và trả về kết quả cuối cùng dưới dạng dictionary
-        """
+        # Phương thức tổng hợp chạy toàn bộ các bước kiểm tra dữ liệu
         all_errors = []
 
         # Gọi các phương thức kiểm tra nội bộ thông qua từ khóa 'self'
@@ -110,13 +92,17 @@ class DataValidator:
 
 # KHU VỰC CHẠY CHÍNH (MAIN)
 if __name__ == "__main__":
-    # Khởi tạo một đối tượng từ lớp DataValidator
-    validator = DataValidator(
-        file_path="data/raw/supermarket_data_sales.csv", tax_rate=0.1
-    )
+    file_path = "data/raw/supermarket_data_sales.csv"
 
-    # Thực hiện nạp dữ liệu, nếu thành công thì bắt đầu quét lỗi
-    if validator.load_data():
+    # Nhiệm vụ đọc file được trả về đúng vị trí ở hàm main này
+    try:
+        # 1. Đọc file lấy DataFrame trước
+        df_raw = pd.read_csv(file_path)
+
+        # 2. Truyền thẳng DataFrame vào class Validator để khởi tạo đối tượng
+        validator = DataValidator(df=df_raw, tax_rate=0.1)
+
+        # 3. Tiến hành quét lỗi
         ket_qua = validator.run_all_validators()
 
         if ket_qua["is_valid"]:
@@ -125,3 +111,8 @@ if __name__ == "__main__":
             print("Dữ liệu có lỗi:")
             for error in ket_qua["errors"]:
                 print(f" - {error}")
+
+    except FileNotFoundError:
+        print(f"Không tìm thấy file tại đường dẫn: {file_path}")
+    except Exception as e:
+        print(f"Đã xảy ra lỗi khi đọc file: {e}")
