@@ -22,11 +22,10 @@ class DataProcessor:
         self.df['Year'] = self.df['Date'].dt.year
         self.df['Day of week'] = self.df['Date'].dt.day_name()
         self.df['Hour']=self.df['Time'].dt.hour
-        self.df['Profit'] = self.df['Sales'] - self.df['cogs']
 
 
     def save_processed_data(self, save_path: str = '../data/processed/cleaned_supermarket_data.csv'):
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        #os.makedirs(os.path.dirname(save_path), exist_ok=True)
         self.df.to_csv(save_path, index=False)
         print(f"Đã lưu dữ liệu làm sạch tại: {save_path}")
 

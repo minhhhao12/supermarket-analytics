@@ -25,6 +25,7 @@ class AIAssistant:
         self.client=genai.Client(api_key=self.api_key)
         self.model='gemma-4-26b-a4b-it'
         self.analytics=analytics_instance
+        self.chat_session=None
 
     def _call_api(self, system_prompt: str, user_prompt: str,tools:list=None)-> GenerateContentResponse | None:
         """
@@ -75,17 +76,80 @@ class AIAssistant:
         return: Chuỗi văn bản chứa điểm đánh giá trung bình ở các chi nhánh
         """
         if self.analytics:
-            df_branch_rating=self.analytics.avg_rating_branches()
+            df_branch_rating=self.analytics.calculate_avg_rating_branches()
             df_branch_rating=df_branch_rating.to_markdown(index=False)
             return df_branch_rating
         return 'Không có dữ liệu để phân tích'
 
+    def get_monthly_revenue_profit(self) -> str:
+        """
+        Lấy bảng thống kê tổng doanh thu và lợi nhuận theo từng tháng.
+        Hàm này được gọi khi người dùng hỏi về doanh thu theo tháng, lợi nhuận các tháng, hoặc so sánh doanh thu giữa các tháng.
+        """
+        if self.analytics:
+            df = self.analytics.calculate_monthly_revenue_profit()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích theo tháng.'
 
+    def get_payment_method_stats(self) -> str:
+        """
+        Lấy bảng phân tích doanh thu và số lượng đơn hàng theo phương thức thanh toán (Tiền mặt, Thẻ, E-wallet...).
+        Hàm này được gọi khi người dùng hỏi về thói quen thanh toán, phương thức nào được dùng nhiều nhất.
+        """
+        if self.analytics:
+            df = self.analytics.calculate_revenue_and_number_of_orders_by_payment_method()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích phương thức thanh toán.'
 
+    def get_customer_demographics_revenue(self) -> str:
+        """
+        Lấy bảng phân tích doanh thu dựa trên loại khách hàng (Customer type: Member, Normal) và Giới tính (Gender: Male, Female).
+        Hàm này được gọi khi người dùng hỏi khách nam hay nữ mua nhiều hơn, hoặc thành viên hay khách vãng lai chi tiêu nhiều hơn.
+        """
+        if self.analytics:
+            df = self.analytics.get_revenue_by_customer_type_and_gender()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích tệp khách hàng.'
 
+    def get_shopping_hours_analysis(self) -> str:
+        """
+        Lấy bảng phân tích khung giờ mua sắm cao điểm. Bao gồm số đơn hàng, doanh thu và đánh giá theo từng khung giờ trong ngày.
+        Hàm này được gọi khi người dùng hỏi về giờ cao điểm, giờ nào đông khách nhất, giờ nào bán được nhiều nhất.
+        """
+        if self.analytics:
+            df = self.analytics.analyze_shopping_hours()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích khung giờ mua sắm.'
 
+    def get_product_line_revenue(self) -> str:
+        """
+        Lấy bảng thống kê doanh thu và lợi nhuận theo từng ngành hàng (Product line).
+        Hàm này được gọi khi người dùng hỏi ngành hàng nào mang lại lợi nhuận cao nhất, ngành nào doanh thu tốt nhất.
+        """
+        if self.analytics:
+            stats, top_profit, worst_profit = self.analytics.calculate_revenue_by_product_line()
+            return f"Bảng tổng hợp:\n{stats.to_markdown(index=False)}\n\nNgành lợi nhuận cao nhất:\n{top_profit.to_markdown(index=False)}\n\nNgành lợi nhuận thấp nhất:\n{worst_profit.to_markdown(index=False)}"
+        return 'Không có dữ liệu phân tích doanh thu ngành hàng.'
 
+    def get_product_line_rating(self) -> str:
+        """
+        Lấy bảng thống kê điểm đánh giá trung bình của khách hàng cho từng ngành hàng.
+        Hàm này được gọi khi người dùng hỏi về điểm đánh giá, mức độ hài lòng của các ngành hàng.
+        """
+        if self.analytics:
+            df = self.analytics.get_avg_rating_by_product_line()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu đánh giá ngành hàng.'
 
+    def get_customer_loyalty_value(self) -> str:
+        """
+        Lấy tỷ lệ phần trăm (%) đóng góp lợi nhuận của khách hàng là Thành viên (Member) so với khách Vãng lai (Normal).
+        Hàm này được gọi khi người dùng hỏi về mức độ trung thành, giá trị của khách hàng thành viên, hoặc so sánh lợi nhuận giữa member và normal.
+        """
+        if self.analytics:
+            df = self.analytics.calculate_loyalty_value()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích mức độ trung thành.'
     def summarize_monthly_performance(self, monthly_df: pd.DataFrame):
         """
         Tính năng: Tóm tắt báo cáo kinh doanh hàng tháng.
@@ -137,33 +201,49 @@ class AIAssistant:
                     2. Cho biết chi nhánh nào đang có số lượng đơn hàng nhiều nhất và chi nhánh có số lượng đơn hàng thấp nhất
                     3. Đề xuất 2-3 phương pháp để thu hút khách hàng hiệu quả
                 """
-        return self._call_api(system_prompt,user_prompt)
+        response=self._call_api(system_prompt,user_prompt)
+        return response.text
 
     def chat_with_data(self, user_question: str) -> str | None:
         """
-        Tính năng: Chatbot thông minh tự động chọn hàm và phân tích dữ liệu cho Giám đốc.
+        Tính năng: Chatbot thông minh tự động chọn hàm và phân tích dữ liệu
         """
         system_prompt = (
-            "Bạn là trợ lý AI thông minh hỗ trợ giám đốc siêu thị. "
-            "Hãy sử dụng các công cụ được cung cấp để lấy dữ liệu chính xác trước khi trả lời."
+            "Bạn là trợ lý AI thông minh hỗ trợ giám đốc chuỗi siêu thị. "
+            "Nhiệm vụ của bạn là sử dụng các công cụ (tools) được cung cấp để trích xuất dữ liệu chính xác trước khi trả lời. "
+            "Nếu dữ liệu trả về dạng bảng, hãy phân tích sơ bộ và trình bày câu trả lời một cách rõ ràng, súc tích bằng tiếng Việt."
         )
-        tools_list = [self.get_products_trend, self.get_branch_performance,self.get_branch_rating]
+        tools_list = [self.get_products_trend,
+            self.get_branch_performance,
+            self.get_branch_rating,
+            self.get_monthly_revenue_profit,
+            self.get_payment_method_stats,
+            self.get_customer_demographics_revenue,
+            self.get_shopping_hours_analysis,
+            self.get_product_line_revenue,
+            self.get_product_line_rating,
+            self.get_customer_loyalty_value]
 
         try:
-            chat=self.client.chats.create(
-                model=self.model,
-                config=genai.types.GenerateContentConfig(
+            if self.chat_session is None:
+                self.chat_session=self.client.chats.create(
+                    model=self.model,
+                    config=genai.types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.3,
                     tools=tools_list
                 )
             )
-            response=chat.send_message(user_question)
+            response=self.chat_session.send_message(user_question)
             return response.text
 
         except Exception as ex:
             print(f"Lỗi khi chat với dữ liệu: {ex}")
             return "Xin lỗi, hệ thống gặp sự cố khi xử lý dữ liệu câu hỏi."
+
+    def clear_chat_history(self):
+        self.chat_session = None
+        return "Đã xóa lịch sử trò chuyện. Bạn có muốn hỏi về chủ đề mới không?"
 
     def advise_on_predictions(self, forecast_df: pd.DataFrame) -> str:
         """
@@ -174,27 +254,3 @@ class AIAssistant:
         # TODO 3: Gọi hàm self._call_api(...) và trả về kết quả.
 
         pass
-
-
-if __name__ == "__main__":
-    # Giả lập luồng nạp dữ liệu của bạn
-    dataloader = DataLoader('../data/raw/supermarket_data_sales.csv')
-    df = dataloader.load_data()
-    dataprocess = DataProcessor(df)
-    df_cleaned = dataprocess.run_pipeline()
-
-    # Khởi tạo đối tượng Analytics
-    analytic_instance = Analytics(df_cleaned.head(100))
-    # top_best_top_worst=analytic_instance.get_top_and_bottom_products()
-    assistant = AIAssistant(analytics_instance=analytic_instance)
-    # print(assistant.analyze_product_trends(top_best_top_worst))
-    # print("\n--- THỬ NGHIỆM CHATBOT FUNCTION CALLING ---")
-    #
-    # cau_hoi_1 = "Chi nhánh nào đang có doanh thu và số lượng đơn hàng tốt nhất vậy?"
-    # print(f"\nGiám đốc hỏi: {cau_hoi_1}")
-    # tra_loi_1 = assistant.chat_with_data(cau_hoi_1)
-    # print(f"AI trả lời:\n{tra_loi_1}")
-    cau_hoi_2=str(input())
-    print(f"\nGiám đốc hỏi: {cau_hoi_2}")
-    tra_loi_2 = assistant.chat_with_data(cau_hoi_2)
-    print(f"AI trả lời:\n{tra_loi_2}")
