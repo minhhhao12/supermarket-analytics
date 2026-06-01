@@ -11,17 +11,21 @@ class DataProcessor:
 
     def normalize_dtypes(self):
         self.df['Date'] = pd.to_datetime(self.df['Date'])
+        self.df['Time']=pd.to_datetime(self.df['Time'],format='%I:%M:%S %p')
         currency_cols = ['Unit price', 'Tax 5%', 'Sales', 'cogs', 'gross income']
         for i in currency_cols:
             self.df[i] = self.df[i].astype(float)
 
     def feature_engineering(self):
+        self.df['Day']=self.df['Date'].dt.day
         self.df['Month'] = self.df['Date'].dt.month
         self.df['Year'] = self.df['Date'].dt.year
-        self.df['Profit'] = self.df['Sales'] - self.df['cogs']
+        self.df['Day of week'] = self.df['Date'].dt.day_name()
+        self.df['Hour']=self.df['Time'].dt.hour
 
-    def save_processed_data(self, save_path: str = 'data/processed/cleaned_supermarket_data.csv'):
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    def save_processed_data(self, save_path: str = '../data/processed/cleaned_supermarket_data.csv'):
+        #os.makedirs(os.path.dirname(save_path), exist_ok=True)
         self.df.to_csv(save_path, index=False)
         print(f"Đã lưu dữ liệu làm sạch tại: {save_path}")
 

@@ -1,0 +1,19 @@
+.st-key-sidebar_chat_container{
+    background: #F2F2F2;
+}
+.st-key-btn_va{
+    border: none;
+}
+.st-key-datefilter_style{
+    background: #333333;
+}
+.stDateInput > div > div {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    border: 2px solid rgba(0, 0, 0, 0.25) !important;
+    border-radius: 10px;
+}
+
+/* Text color */
+.stDateInput input {
+    color: black !important;
+}

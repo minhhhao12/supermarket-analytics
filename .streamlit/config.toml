@@ -1,0 +1,21 @@
+[theme]
+primaryColor= "#134c9c"
+backgroundColor = "#F2F2F2"
+textColor = "#0f172a"
+font = "sans serif"
+baseFontSize= 18
+
+[theme.sidebar]
+textColor = "#000000"
+backgroundColor="#4E91CF"
+
+[server]
+maxUploadSize = 500
+port = 8501
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = false
+
+[global]
+gatherUsageStats = false
