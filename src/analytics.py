@@ -98,17 +98,37 @@ class Analytics:
 
 
     #TODO:  calculate_average_order_value(self) -> pd.DataFrame: Cách tính: Tính giá trị đơn hàng trung bình (Tổng Sales / Tổng số Invoice ID) phân theo từng Chi nhánh, Loại khách hàng hoặc Khung giờ. Giá trị: Biết được nhóm nào đang mua giỏ hàng "giá trị cao" để tập trung upsell.
-    def analyze_low_rating_bottlenecks(self) -> dict:
+    #TODO: Phân tích số lượng sản phẩm trung bình trên một đơn hàng theo Ngành hàng:analyze_basket_size
+
+    def analyze_rating_vs_sales_correlation(self) -> float:
+        """
+        Tính hệ số tương quan (Correlation) giữa điểm Rating và Doanh số Sales.
+        Giúp biết được khách mua đơn hàng lớn thì có khó tính hơn (cho điểm thấp hơn) không.
+        """
+        correlation = self.df['Rating'].corr(self.df['Sales'])
+        return round(correlation, 4)
+
+    def get_executive_summary(self) -> dict:
+        # Tổng hợp các chỉ số sức khỏe tài chính cốt lõi của siêu thị (KPIs).
+        total_sales = self.df['Sales'].sum()
+        total_profit = self.df['gross income'].sum()
+        total_orders = self.df['Invoice ID'].count()
+
+        summary = {
+            "Total_Revenue": round(total_sales, 2),
+            "Total_Profit": round(total_profit, 2),
+            "Total_Orders": int(total_orders),
+            "Overall_Gross_Margin_Percent": round((total_profit / total_sales) * 100, 2),
+            "Overall_AOV": round(total_sales / total_orders, 2),
+            "Overall_Avg_Rating": round(self.df['Rating'].mean(), 2)
+        }
+        return summary
+
+
+    def analyze_low_rating_bottlenecks(self) -> tuple:
         low_rating_df = self.df[self.df['Rating'] < 5]
         if low_rating_df.empty:
-            return {}
-
-        by_branch = low_rating_df.groupby('Branch')['Invoice ID'].count().reset_index().rename(
-            columns={'Invoice ID': 'Low_Rating_Count'})
-        by_product = low_rating_df.groupby('Product line')['Invoice ID'].count().reset_index().rename(
-            columns={'Invoice ID': 'Low_Rating_Count'})
-
-        return {
-            "by_branch": by_branch.sort_values(by='Low_Rating_Count', ascending=False),
-            "by_product": by_product.sort_values(by='Low_Rating_Count', ascending=False)
-        }
+            return ()
+        by_branch = low_rating_df.groupby('Branch')['Invoice ID'].count().reset_index()
+        by_product = low_rating_df.groupby('Product line')['Invoice ID'].count().reset_index()
+        return by_branch,by_product
