@@ -35,6 +35,7 @@ def vis_filter(df):
     customer_options = df['Customer type'].unique().tolist()
     selected_customer = st.sidebar.multiselect("Loại Khách Hàng:", customer_options, default=customer_options)
 
+
     df_filtered = df[
         (df['City'].isin(selected_city)) &
         (df['Gender'].isin(selected_gender)) &

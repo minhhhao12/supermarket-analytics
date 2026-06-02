@@ -17,3 +17,14 @@
 .stDateInput input {
     color: black !important;
 }
+
+        /* 2. Ẩn dòng chữ hướng dẫn cỡ file và nút bấm thừa bên trong hộp */
+div[data-testid="btn_upload_preview"] section {
+            padding: 10px !important;
+        }
+
+        /* 3. Chỉnh lại chiều cao của hộp uploader cho gọn gàng hơn */
+div[data-testid="btn_upload_preview"] {
+            padding: 15px !important;
+            min-height: 80px !important;
+        }
