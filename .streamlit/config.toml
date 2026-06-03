@@ -1,13 +1,21 @@
 [theme]
-primaryColor= "#134c9c"
-backgroundColor = "#F2F2F2"
-textColor = "#0f172a"
+# Màu điểm nhấn cho nút bấm, thanh trượt (Dùng màu xanh Cadet Blue)
+primaryColor = "#6CBDB5"
+
+# Màu nền chính của ứng dụng (Dùng màu Wheat sáng dịu)
+backgroundColor = "#E3DFBA"
+
+# Màu chữ chính trong vùng nội dung (Dùng màu tối Black)
+textColor = "#1A1F1E"
+
 font = "sans serif"
-baseFontSize= 18
 
 [theme.sidebar]
-textColor = "#000000"
-backgroundColor="#4E91CF"
+# Màu chữ và icon trong thanh Sidebar (Chuyển sang màu sáng để dễ đọc trên nền tối)
+textColor = "#1A1F1E"
+
+# Màu nền của thanh Sidebar bên trái (Dùng màu Black tối sang trọng)
+backgroundColor = "#1A1F1E"
 
 [server]
 maxUploadSize = 500

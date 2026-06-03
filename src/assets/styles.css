@@ -1,30 +1,99 @@
-.st-key-sidebar_chat_container{
-    background: #F2F2F2;
-}
-.st-key-btn_va{
-    border: none;
-}
-.st-key-datefilter_style{
-    background: #333333;
-}
-.stDateInput > div > div {
-    background-color: rgba(255, 255, 255, 0.15) !important;
-    border: 2px solid rgba(0, 0, 0, 0.25) !important;
-    border-radius: 10px;
+/* Đồng bộ nền Sidebar sang màu tối #1A1F1E tương phản với vùng đồ thị */
+section[data-testid="stSidebar"] {
+    background-color: #1A1F1E !important; 
+    padding: 20px 10px;
 }
 
-/* Text color */
-.stDateInput input {
-    color: black !important;
+/* Đổi chữ tiêu đề và nhãn trong sidebar sang màu Wheat sáng dịu để dễ đọc */
+section[data-testid="stSidebar"] .stMarkdown p, 
+section[data-testid="stSidebar"] label {
+    color: #E3DFBA !important;
+    font-weight: 500 !important;
+}
+/* Ép nút ở trạng thái bình thường KHÔNG tự động viết hoa */
+section[data-testid="stSidebar"] button {
+    text-transform: none !important;
 }
 
-        /* 2. Ẩn dòng chữ hướng dẫn cỡ file và nút bấm thừa bên trong hộp */
-div[data-testid="btn_upload_preview"] section {
-            padding: 10px !important;
-        }
+/* Ép nút ở trạng thái khi click vào (Focus/Active) cũng KHÔNG được viết hoa */
+section[data-testid="stSidebar"] button:focus,
+section[data-testid="stSidebar"] button:active,
+section[data-testid="stSidebar"] button[data-testid="baseButton-secondary"]:focus {
+    text-transform: none !important;
+}
+/* Biến đổi các ô Selectbox/Dropdown trong Sidebar ăn theo tông nền tối */
+section[data-testid="stSidebar"] div[data-baseweb="select"] {
+    border-radius: 8px !important;
+    background-color: #262C2A !important; /* Tối hơn một chút so với nền sidebar */
+    border: 1px solid #3A4240 !important;
+}
 
-        /* 3. Chỉnh lại chiều cao của hộp uploader cho gọn gàng hơn */
-div[data-testid="btn_upload_preview"] {
-            padding: 15px !important;
-            min-height: 80px !important;
-        }
+/* Ép tất cả nút bấm trong Sidebar phải hiển thị rõ ràng, không bị mờ/tối đi */
+section[data-testid="stSidebar"] button {
+    background-color: #6CBDB5 !important; /* Giữ nguyên màu xanh Cadet Blue giống nút đang chọn */
+    color: #1A1F1E !important;           /* Giữ màu chữ tối rõ ràng, không bị mờ */
+    opacity: 1 !important;               /* Xóa hiệu ứng làm mờ của Streamlit */
+}
+
+/* Tùy chọn: Khi rê chuột (Hover) vào nút chưa chọn thì sáng nhẹ lên để phân biệt */
+section[data-testid="stSidebar"] button:hover {
+    background-color: #93CCC6 !important; /* Đổi sang màu Light Steel Blue khi hover */
+    color: #1A1F1E !important;
+}
+
+/* Áp dụng màu xám rêu nhạt #C8D6BF làm nền cho st.metric để nổi bật trên nền Wheat */
+div[data-testid="stMetric"] {
+    background: #C8D6BF !important;
+    border: 1px solid rgba(26, 31, 30, 0.08) !important;
+    padding: 15px 20px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* Hiệu ứng nhấc nhẹ và đổi viền sang màu xanh Cadet Blue khi hover chuột */
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 10px 20px rgba(26, 31, 30, 0.08) !important;
+    border-color: #6CBDB5 !important; 
+}
+
+/* Chỉnh chữ số lớn trong thẻ Metric đậm nét theo màu tối hệ thống */
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    color: #1A1F1E !important;
+}
+
+
+/* Bo góc mượt cho bảng hiển thị DataFrame */
+div[data-testid="stDataFrameData"] {
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid #C8D6BF !important;
+}
+
+/* Tăng khoảng cách hiển thị của các biểu đồ, dùng nền sáng sữa để nổi bật nét vẽ */
+div[data-testid="stArrowVegaLiteChart"], 
+div[data-testid="stPlotlyChart"] {
+    background: #F4F1DE !important; /* Màu nền phụ sáng hơn Wheat một chút */
+    padding: 12px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+    border: 1px solid rgba(200, 214, 191, 0.5) !important;
+}
+
+/* Làm mượt các hộp thông báo st.success, st.warning, st.error */
+div[data-testid="stNotification"] {
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Tạo viền phát sáng nhẹ màu Teal nhạt khi click vào ô Text Input */
+.stTextInput input:focus {
+    border-color: #93CCC6 !important;
+    box-shadow: 0 0 0 3px rgba(147, 204, 198, 0.35) !important;
+    transition: all 0.2s ease-in-out !important;
+    background-color: #F4F1DE !important;
+}
