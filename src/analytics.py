@@ -1,5 +1,8 @@
 import pandas as pd
 from pandas import DataFrame
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
 
 class Analytics:
     def __init__(self,df:DataFrame):
@@ -89,6 +92,14 @@ class Analytics:
         sorted_df=df_tmp.sort_values(by='Profit per cogs',ascending=False)
         return sorted_df
     # Biến động điểm số đánh giá (Rating Volatility): Tìm hiểu xem các điểm số thấp (1-3 sao) thường rơi vào chi nhánh nào, ngành hàng nào, hoặc phương thức thanh toán nào để tìm ra "vấn đề hệ thống" (Bottleneck).
+    def analyze_low_rating_bottlenecks(self) -> tuple:
+        low_rating_df = self.df[self.df['Rating']<5]
+        if low_rating_df.empty:
+            return ()
+        by_branch =low_rating_df.groupby('Branch')['Invoice ID'].count().reset_index()
+        by_product =low_rating_df.groupby('Product line')['Invoice ID'].count().reset_index()
+        return by_branch, by_product
+
     # Mức độ trung thành (Loyalty Value): Nhóm khách hàng Member đóng góp bao nhiêu % vào tổng lợi nhuận so với nhóm khách vãng lai Normal?
     def calculate_loyalty_value(self)->pd.DataFrame:
         df_revenue_customer_type=self.df.groupby('Customer type')[['Sales','gross income']].sum().reset_index()
@@ -96,15 +107,28 @@ class Analytics:
         df_revenue_customer_type['percentage of total profit']=((df_revenue_customer_type['gross income']/df_revenue)*100).round(2)
         return df_revenue_customer_type
 
+    #Tính giá trị đơn hàng trung bình (Tổng Sales / Tổng số Invoice ID) phân theo từng Chi nhánh, Loại khách hàng. Giá trị: Biết được nhóm nào đang mua giỏ hàng "giá trị cao" để tập trung upsell.
+    def calculate_average_order_value(self)->pd.DataFrame:
+        df_average_order_value=self.df.groupby(['Branch','Customer type']).agg(
+            Total_Sales=('Sales','sum'),
+            Total_Orders=('Invoice ID','count')
+        )
+        df_average_order_value['average_order_value']=(df_average_order_value['Total_Sales']/df_average_order_value['Total_Orders']).round(2)
+        df_average_order_value=df_average_order_value.sort_values(by='average_order_value',ascending=False)
+        return df_average_order_value
 
-    #TODO:  calculate_average_order_value(self) -> pd.DataFrame: Cách tính: Tính giá trị đơn hàng trung bình (Tổng Sales / Tổng số Invoice ID) phân theo từng Chi nhánh, Loại khách hàng hoặc Khung giờ. Giá trị: Biết được nhóm nào đang mua giỏ hàng "giá trị cao" để tập trung upsell.
-    #TODO: Phân tích số lượng sản phẩm trung bình trên một đơn hàng theo Ngành hàng:analyze_basket_size
+    #Phân tích số lượng sản phẩm trung bình trên một đơn hàng theo Ngành hàng:analyze_basket_size
+    def analyze_basket_size(self)->pd.DataFrame:
+        df=self.df.groupby('Product line').agg(
+            total_quantity=('Quantity','sum'),
+            total_order=('Invoice ID','count')
+        ).reset_index()
+        df['average order item']=(df['total_quantity']/df['total_order']).round(1)
+        return df
 
     def analyze_rating_vs_sales_correlation(self) -> float:
-        """
-        Tính hệ số tương quan (Correlation) giữa điểm Rating và Doanh số Sales.
-        Giúp biết được khách mua đơn hàng lớn thì có khó tính hơn (cho điểm thấp hơn) không.
-        """
+        # Tính hệ số tương quan (Correlation) giữa điểm Rating và Doanh số Sales.
+        # Giúp biết được khách mua đơn hàng lớn thì có khó tính hơn (cho điểm thấp hơn) không
         correlation = self.df['Rating'].corr(self.df['Sales'])
         return round(correlation, 4)
 
@@ -124,11 +148,26 @@ class Analytics:
         }
         return summary
 
+    #Dự báo doanh thu 30 ngày tiếp theo
+    def forecast_next_month_revenue(self)->pd.DataFrame:
+        df_daily_revenue=self.df.groupby(['Year','Month','Day'])['Sales'].sum().reset_index()
 
-    def analyze_low_rating_bottlenecks(self) -> tuple:
-        low_rating_df = self.df[self.df['Rating'] < 5]
-        if low_rating_df.empty:
-            return ()
-        by_branch = low_rating_df.groupby('Branch')['Invoice ID'].count().reset_index()
-        by_product = low_rating_df.groupby('Product line')['Invoice ID'].count().reset_index()
-        return by_branch,by_product
+        df_daily_revenue['Day_Index']=df_daily_revenue.index
+        print(df_daily_revenue)
+        X=df_daily_revenue[['Day_Index']]
+        y=df_daily_revenue['Sales']
+        model=LinearRegression()
+        model.fit(X,y)
+
+        last_index=df_daily_revenue['Day_Index'].max()
+        future_df=pd.DataFrame({
+            'Day_Index':range(last_index+1,last_index+31)
+        })
+        forecast_sale=model.predict(future_df)
+        forecast_df=pd.DataFrame(
+            {
+                "Day": range(1, 31),
+                "Forecast_Sales": forecast_sale.round(2),
+            }
+        )
+        return forecast_df
