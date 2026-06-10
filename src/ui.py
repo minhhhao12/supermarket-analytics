@@ -1,197 +1,563 @@
-import streamlit as st
+import dash
+from dash import dcc, html, dash_table, Input, Output, State, ctx, callback
+import dash_bootstrap_components as dbc
 import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import os
-import matplotlib.ticker as ticker
-import plotly.express as px
-from pathlib import Path
-import altair as alt
+import base64
+import io
+import json
+
 from data_validator import DataValidator
-from ai_assistant import AIAssistant
-from dotenv import load_dotenv
-load_dotenv()
-import google
-from google import genai
-from google.genai import types
-from google.genai.types import GenerateContentResponse
-from googleapiclient import errors
-from analytics import Analytics
-from data_loader import DataLoader
 from data_processor import DataProcessor
-from visualization import SupermarketApp
-#Data
-st.set_page_config(page_title="admin", layout="wide")
-# File CSS
-def load_css(css_file):
-    with open(css_file, "r", encoding="utf-8") as f:
-        st.markdown(
-            f"<style>{f.read()}</style>",
-            unsafe_allow_html=True
-        )
-BASE_DIR = Path(__file__).parent
-css_path = BASE_DIR / "assets" / "styles.css"
-load_css(css_path)
-#file data(cvs)
-if "active_page" not in st.session_state:
-    st.session_state.active_page = "Data Validation"
-#sidebar
-with st.sidebar:
-    st.markdown("**Admin Tools**")
-    # Nút Validation (va)
-    is_val_active = st.session_state.active_page == "Data Validation"
-    val_label = "**DATA VALIDATION**" if is_val_active else "Data Validation"
-    if st.button(val_label,  width="stretch", type="primary" if is_val_active else "secondary",key='btn_va'):
-        st.session_state.active_page = "Data Validation"
-        st.rerun()
+from ai_assistant import AIAssistant
+from analytics import Analytics
+from visualization import ChartBuilder
 
-    # Nút Visualization (vis)
-    is_vis_active = st.session_state.active_page == "Data Visualization"
-    vis_label = "**DATA VISUALIZATION**" if is_vis_active else "Data Visualization"
-    if st.button(vis_label,  width="stretch", type="primary" if is_vis_active else "secondary",key='btn_vis'):
-        st.session_state.active_page = "Data Visualization"
-        st.rerun()
-    if st.session_state.active_page == "Data Visualization":
-        #city hay branch
-        df = st.session_state.uploaded_df
-        if df is not None:
-            selected_city = st.multiselect(label="Chọn thành phố", options=df['City'].unique().tolist())
-            selected_product = st.multiselect(label="Chọn sản phẩm", options=df['Product line'].unique().tolist())
-            selected_Gender = st.multiselect(label="Chọn giới tính", options=df['Gender'].unique().tolist())
-            selected_Customertypes = st.multiselect(label="Chọn loại khách hàng",options=df['Customer type'].unique().tolist())
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.LITERA, dbc.icons.FONT_AWESOME],
+    suppress_callback_exceptions=True
+)
+app.title = "Supermarket Dashboard"
 
-            city_filter = selected_city if selected_city else df['City'].unique().tolist()
-            product_filter = selected_product if selected_product else df['Product line'].unique().tolist()
-            gender_filter = selected_Gender if selected_Gender else df['Gender'].unique().tolist()
-            customer_filter = selected_Customertypes if selected_Customertypes else df['Customer type'].unique().tolist()
-            filter_sidebar= df[
-            (df['City'].isin(city_filter)) & (df['Product line'].isin(product_filter)) & (df['Gender'].isin(gender_filter)) & (df['Customer type'].isin(customer_filter))
-            ]
+# ==========================================
+# CÁC THÀNH PHẦN GIAO DIỆN CHÍNH
+# ==========================================
 
-##main page
- #va main page
-center_canvas, AI_right = st.columns([ 4, 2])
-with center_canvas:
-    if "uploaded_df" not in st.session_state:
-        st.session_state.uploaded_df = None
-    if st.session_state.active_page == "Data Validation":
-        row1_col1, row1_col2= st.columns(2)
-        with row1_col1:
-            with st.container(border=True,height=150):
-                file_uploaded=st.file_uploader('Upload file CSV of your data',type=["csv"],accept_multiple_files=False,label_visibility="collapsed",key='btn_upload_preview',width="stretch")
-        with row1_col2:
-                if file_uploaded is not None:
-                        df_current = pd.read_csv(file_uploaded)
-                        st.success(f" Đã nhận file: **{file_uploaded.name}**")
-                        st.session_state.uploaded_df = df_current
-                        st.session_state.file_name = file_uploaded.name
-                elif st.session_state.uploaded_df is not None:
-                    file_name = st.session_state.get("file_name", "Unknown name")
-                    st.info(f'holding file {file_name}')
-                else:
-                    st.warning("upload data file to start")
+# Navbar
+navbar = dbc.Navbar(
+    dbc.Container(
+        [
+            html.A(
+                dbc.Row(
+                    [
+                        dbc.Col(html.I(className="fa-solid fa-store fa-2x", style={"color": "white"})),
+                        dbc.Col(dbc.NavbarBrand("Supermarket Analytic Dashboard", className="ms-3 fs-3 fw-bold")),
+                    ],
+                    align="center",
+                    className="g-0",
+                ),
+                href="/",
+                style={"textDecoration": "none"},
+            ),
+        ],
+        fluid=True,
+    ),
+    color="primary",
+    dark=True,
+    className="mb-4 shadow-sm",
+)
 
-        row2_col1, row2_col2 = st.columns(2)
-        with row2_col1:
-         with st.container(border=True):
-            if st.session_state.uploaded_df is not None:
-                st.dataframe(st.session_state.uploaded_df)
-            else:
-                st.info("Xin hãy upload file.")
-        with row2_col2:
-         with st.container(border=True):
-                st.subheader("Kết quả quét dữ liệu hệ thống")
-                if st.session_state.uploaded_df is not None:
-                        validator = DataValidator(st.session_state.uploaded_df)
-                        ket_qua = validator.run_all_validators()
-                        if not ket_qua:
-                            st.success(
-                                "🎉 Tuyệt vời! Dữ liệu hoàn toàn sạch sẽ, không phát hiện lỗi logic hoặc sai lệch tiền tệ.")
-                        else:
-                            st.error(f"❌ Phát hiện {len(ket_qua['errors'])} lỗi nghiêm trọng trong file dữ liệu:")
-                            for error in ket_qua:
-                                st.info(f"👉 {error}")
-                else: st.info("bạn chưa upload file")
-     #vis main page
-    elif st.session_state.active_page == "Data Visualization":
-        if df is not None:
-            filter_sidebar['Date'] = pd.to_datetime(filter_sidebar['Date'],errors='coerce')
-            date_options = sorted(filter_sidebar['Date'].dropna().dt.date.unique())
-            if date_options:
-                selected_date = st.date_input(label="📅 Chọn ngày xem báo cáo:", value=date_options[0], min_value=date_options[0], max_value=date_options[-1] )
-                df_final_filtered = filter_sidebar[filter_sidebar['Date'].dt.date == selected_date]
-            else:
-                df_final_filtered = filter_sidebar
-                sum_tab, avg_tab = st.columns(2)
-                with sum_tab:
-                    total_sales = df_final_filtered["Sales"].sum()
-                    st.metric("Total Sales", f"{df_final_filtered['Sales'].sum():,.0f}",border=True)
-                with avg_tab:
-                    avg_sales = df_final_filtered["Sales"].mean()
-                    st.metric("Average Sales",f"{df_final_filtered['Sales'].mean():,.2f}",border=True )
-            if not df_final_filtered.empty:
-                # Khởi tạo đối tượng App và truyền DataFrame đã lọc qua cả 2 tầng vào
-                app_visualizer = SupermarketApp(df_filtered=df_final_filtered)
+# Tab: Data Validation
+tab_validation = dbc.Card(
+    dbc.CardBody([
+        html.Div([
+            html.H4([html.I(className="fa-solid fa-upload me-2"), "Tải lên & Kiểm tra dữ liệu"], className="text-primary mb-3"),
+            html.P("Hệ thống sẽ tự động phân tích và kiểm tra các lỗi logic trong dữ liệu bán hàng của bạn.", className="text-muted")
+        ]),
+        dcc.Upload(
+            id='upload-data',
+            children=html.Div([
+                html.I(className="fa-solid fa-cloud-arrow-up fa-3x mb-2 text-primary"),
+                html.Br(),
+                'Kéo thả hoặc ', html.A('Chọn file CSV', className="text-primary fw-bold")
+            ]),
+            style={
+                'width': '100%', 'height': '150px', 'lineHeight': 'normal',
+                'borderWidth': '2px', 'borderStyle': 'dashed', 'borderColor': '#0d6efd',
+                'borderRadius': '15px', 'textAlign': 'center', 'marginBottom': '20px',
+                'cursor': 'pointer', 'backgroundColor': '#f8f9fa',
+                'display': 'flex', 'flexDirection': 'column', 'justifyContent': 'center', 'alignItems': 'center'
+            },
+            multiple=False
+        ),
+        html.Div(id='upload-status-alert'),
+        html.Hr(className="my-4"),
+        dbc.Row([
+            dbc.Col([
+                html.H5([html.I(className="fa-solid fa-table me-2"), "Xem trước dữ liệu"], className="text-secondary mb-3"),
+                html.Div(id='data-table-container', style={"overflowX": "auto"}, className="shadow-sm border rounded")
+            ], width=12)
+        ])
+    ]),
+    className="border-0 shadow-sm rounded-3 mt-4"
+)
 
-                # Ra lệnh kích hoạt vẽ toàn bộ 4 biểu đồ Plotly ra màn hình chính
-                app_visualizer.run()
+# Tab: Data Visualization
+tab_visualization = html.Div([
+    # Khung Bộ Lọc
+    dbc.Card(
+        dbc.CardBody([
+            html.H5([html.I(className="fa-solid fa-filter me-2"), "Bộ lọc dữ liệu"], className="text-primary mb-3"),
+            dbc.Row([
+                dbc.Col(dcc.Dropdown(id='filter-city', multi=True, placeholder="Thành phố..."), width=12, md=3, className="mb-2"),
+                dbc.Col(dcc.Dropdown(id='filter-product', multi=True, placeholder="Ngành hàng..."), width=12, md=3, className="mb-2"),
+                dbc.Col(dcc.Dropdown(id='filter-gender', multi=True, placeholder="Giới tính..."), width=12, md=2, className="mb-2"),
+                dbc.Col(dcc.Dropdown(id='filter-customer', multi=True, placeholder="Loại KH..."), width=12, md=2, className="mb-2"),
+                dbc.Col(dcc.DatePickerSingle(id='filter-date', placeholder="Chọn ngày", className="w-100"), width=12, md=2, className="mb-2"),
+            ])
+        ]),
+        className="border-0 shadow-sm rounded-3 mb-4 mt-4"
+    ),
+
+    # Khung KPIs
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col(html.I(className="fa-solid fa-sack-dollar fa-3x text-primary"), width="auto"),
+                    dbc.Col([
+                        html.H6("Tổng Doanh Thu", className="text-muted text-uppercase mb-1"),
+                        html.H3(id="kpi-total-sales", className="text-dark fw-bold mb-0")
+                    ])
+                ], align="center")
+            ])
+        ], className="border-0 shadow-sm rounded-3"), width=12, md=6, className="mb-4"),
+        
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col(html.I(className="fa-solid fa-chart-line fa-3x text-success"), width="auto"),
+                    dbc.Col([
+                        html.H6("Doanh Thu Trung Bình", className="text-muted text-uppercase mb-1"),
+                        html.H3(id="kpi-avg-sales", className="text-dark fw-bold mb-0")
+                    ])
+                ], align="center")
+            ])
+        ], className="border-0 shadow-sm rounded-3"), width=12, md=6, className="mb-4"),
+    ]),
+
+    # Khung Biểu đồ - Cột 1 (Biểu đồ cũ)
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(
+                dbc.Row([
+                    dbc.Col(html.H6([html.I(className="fa-solid fa-credit-card me-2"), "Cơ cấu thanh toán"], className="mb-0"), width="auto", align="center"),
+                    dbc.Col(dcc.Dropdown(id='chart1-type',
+                                         options=["Biểu đồ Tròn (Donut/Pie)", "Biểu đồ Cột (Bar Chart)"],
+                                         value="Biểu đồ Tròn (Donut/Pie)", clearable=False, style={"minWidth": "200px"}),
+                            width="auto", className="ms-auto")
+                ], align="center"),
+                className="bg-white border-bottom-0 pt-3 pb-0"
+            ),
+            dbc.CardBody(dcc.Graph(id='fig-payment', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
+
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(
+                dbc.Row([
+                    dbc.Col(html.H6([html.I(className="fa-solid fa-tags me-2"), "Doanh thu theo ngành hàng"], className="mb-0"), width="auto", align="center"),
+                    dbc.Col(dcc.Dropdown(id='chart2-type',
+                                         options=["Biểu đồ Cột Ngang (Horizontal Bar)", "Biểu đồ Cột Dọc (Vertical Bar)", "Biểu đồ Dạng Cây (Treemap)"],
+                                         value="Biểu đồ Cột Ngang (Horizontal Bar)", clearable=False, style={"minWidth": "200px"}),
+                            width="auto", className="ms-auto")
+                ], align="center"),
+                className="bg-white border-bottom-0 pt-3 pb-0"
+            ),
+            dbc.CardBody(dcc.Graph(id='fig-category', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
+    ], className="g-4"),
+
+    # Khung Biểu đồ - Cột 2 (Biểu đồ cũ)
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(
+                dbc.Row([
+                    dbc.Col(html.H6([html.I(className="fa-solid fa-star me-2"), "Phân bố điểm đánh giá"], className="mb-0"), width="auto", align="center"),
+                    dbc.Col(dcc.Dropdown(id='chart3-type',
+                                         options=["Biểu đồ Tần suất (Histogram)", "Biểu đồ Hộp (Box Plot)", "Biểu đồ Violin"],
+                                         value="Biểu đồ Tần suất (Histogram)", clearable=False, style={"minWidth": "200px"}),
+                            width="auto", className="ms-auto")
+                ], align="center"),
+                className="bg-white border-bottom-0 pt-3 pb-0"
+            ),
+            dbc.CardBody(dcc.Graph(id='fig-rating-dist', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
+
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(
+                dbc.Row([
+                    dbc.Col(html.H6([html.I(className="fa-solid fa-heart me-2"), "Độ hài lòng theo ngành hàng"], className="mb-0"), width="auto", align="center"),
+                    dbc.Col(dcc.Dropdown(id='chart4-type',
+                                         options=["Biểu đồ Cột Ngang (Horizontal Bar)", "Biểu đồ Điểm (Dot Plot)"],
+                                         value="Biểu đồ Cột Ngang (Horizontal Bar)", clearable=False, style={"minWidth": "200px"}),
+                            width="auto", className="ms-auto")
+                ], align="center"),
+                className="bg-white border-bottom-0 pt-3 pb-0"
+            ),
+            dbc.CardBody(dcc.Graph(id='fig-rating-cat', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
+    ], className="g-4"),
+
+    # THÊM CÁC BIỂU ĐỒ MỚI
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-building me-2"), "Hiệu suất Chi nhánh (Doanh thu & Lợi nhuận)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-branch-perf', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
+
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-users-viewfinder me-2"), "Cơ cấu Doanh thu (KH & Giới tính)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-customer-gender', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
+    ], className="g-4"),
+
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-clock me-2"), "Lượng Đơn Hàng Theo Khung Giờ"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-shopping-hours', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
+
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-arrow-trend-up me-2"), "Dự báo Doanh thu 30 ngày (Linear Regression)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-forecast-revenue', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
+    ], className="g-4")
+])
+
+# Layout chính
+app.layout = html.Div([
+    # Lưu trữ dữ liệu ngầm trên trình duyệt
+    dcc.Store(id='stored-data', data=None),
+    dcc.Store(id='chat-history', data=[
+        {"role": "assistant", "content": "Xin chào! Tôi là AI Assistant. Tôi có thể giúp gì cho bạn hôm nay?"}]),
+
+    navbar,
+
+    dbc.Container([
+        dbc.Tabs([
+            dbc.Tab(tab_validation, label="Dữ liệu", tab_id="tab-validation", label_style={"fontWeight": "bold", "fontSize": "16px"}),
+            dbc.Tab(tab_visualization, label="Biểu đồ", tab_id="tab-visualization", label_style={"fontWeight": "bold", "fontSize": "16px"}),
+        ], id="tabs", active_tab="tab-validation", className="nav-pills mt-2"),
+    ], fluid=True, className="px-4 pb-5 bg-light", style={"minHeight": "100vh"}),
+
+    # MODAL CHO VALIDATION
+    dbc.Modal(
+        [
+            dbc.ModalHeader(id="validation-modal-header"),
+            dbc.ModalBody(id="validation-modal-body"),
+            dbc.ModalFooter(
+                dbc.Button("Đóng", id="modal-close-button", className="ms-auto", n_clicks=0)
+            ),
+        ],
+        id="validation-modal",
+        is_open=False,
+        centered=True,
+        size="lg",
+    ),
+
+    # NÚT GỌI AI ASSISTANT (Nổi ở góc phải dưới)
+    html.Div(
+        dbc.Button([html.I(className="fa-solid fa-robot me-2 fs-5"), "AI Assistant"],
+                   id="btn-open-ai", color="info", className="rounded-pill shadow-lg text-white fw-bold px-4 py-2", size="lg",
+                   style={"background": "linear-gradient(45deg, #0dcaf0, #0d6efd)", "border": "none"}),
+        style={"position": "fixed", "bottom": "40px", "right": "40px", "zIndex": 1000}
+    ),
+
+    # OFFCANVAS CHO AI CHATBOT
+    dbc.Offcanvas(
+        html.Div([
+            html.Div(id='chat-display',
+                     style={"height": "70vh", "overflowY": "auto", "padding": "15px", "backgroundColor": "#f8f9fa",
+                            "borderRadius": "15px", "marginBottom": "20px", "boxShadow": "inset 0 0 10px rgba(0,0,0,0.05)"}),
+            
+            # Thêm Loading component bao quanh InputGroup
+            dcc.Loading(
+                id="loading-chat",
+                type="circle",
+                color="#0d6efd",
+                children=[
+                    dbc.InputGroup([
+                        dbc.Input(id="chat-input", placeholder="Hỏi AI về dữ liệu của bạn...", type="text", className="rounded-start-pill ps-4"),
+                        dbc.Button(html.I(className="fa-solid fa-paper-plane"), id="chat-submit", color="primary", className="rounded-end-pill px-4"),
+                    ], className="mb-2 shadow-sm"),
+                ]
+            ),
+            
+            dbc.Button([html.I(className="fa-solid fa-trash me-2"), "Xóa lịch sử trò chuyện"], id="chat-clear", color="outline-danger", size="sm", className="w-100 rounded-pill mt-2")
+        ]),
+        id="offcanvas-ai",
+        title=html.Span([html.I(className="fa-solid fa-robot me-2 text-primary"), "Trợ Lý AI Thông Minh"]),
+        is_open=False,
+        placement="end",
+        style={"width": "450px", "borderLeft": "none", "boxShadow": "-5px 0 15px rgba(0,0,0,0.1)"}
+    )
+], style={"backgroundColor": "#f4f6f9"})
+
+# ==========================================
+# CALLBACKS (XỬ LÝ LOGIC TƯƠNG TÁC)
+# ==========================================
+
+
+# 1. Xử lý Upload Dữ liệu & Validation -> Hiển thị trên Modal
+@app.callback(
+    Output('stored-data', 'data'),
+    Output('upload-status-alert', 'children'),
+    Output('data-table-container', 'children'),
+    Output('validation-modal', 'is_open'),
+    Output('validation-modal-header', 'children'),
+    Output('validation-modal-body', 'children'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename')
+)
+def process_upload(contents, filename):
+    if contents is None:
+        return dash.no_update, dash.no_update, dash.no_update, False, "", ""
+
+    try:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+
+        # Chạy Validation
+        validator = DataValidator(df)
+        ket_qua = validator.run_all_validators()
+
+        modal_title = ""
+        val_ui = ""
+        
+        # Giao diện kết quả Validation
+        if not ket_qua:
+            modal_title = html.Span([html.I(className="fa-solid fa-circle-check me-2 text-success"), "Dữ liệu Hoàn Hảo!"])
+            val_ui = dbc.Alert(
+                "Tuyệt vời! Dữ liệu hoàn toàn sạch sẽ, không phát hiện lỗi logic.",
+                color="success",
+                className="shadow-sm rounded-3"
+            )
         else:
-            st.info("Please upload your data to start")
-with AI_right:
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [
-            {"role": "assistant", "content": "Tôi có thể giúp gì cho bạn hôm nay?"}
-        ]
+            modal_title = html.Span([html.I(className="fa-solid fa-triangle-exclamation me-2 text-danger"), "Phát Hiện Lỗi Dữ Liệu"])
+            val_ui = html.Div([
+                dbc.Alert(
+                    f"Hệ thống đã phát hiện {len(ket_qua['errors'])} lỗi logic trong file của bạn:",
+                    color="danger",
+                    className="shadow-sm rounded-3 mb-2"
+                ),
+                dbc.ListGroup(
+                    [dbc.ListGroupItem(err, className="text-danger bg-light") for err in ket_qua['errors']],
+                    flush=True,
+                    className="rounded-3"
+                )
+            ])
 
-    # 2. Xác định an toàn dữ liệu mục tiêu cho AI độc lập với các bộ lọc giao diện
-    ai_target_df = st.session_state.get("uploaded_df")
+        # Bảng dữ liệu thu gọn
+        table_ui = dash_table.DataTable(
+            data=df.head(1000).to_dict('records'),
+            columns=[{'name': i, 'id': i} for i in df.columns],
+            page_size=10,
+            style_table={'overflowX': 'auto', 'minWidth': '100%'},
+            style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold', 'borderBottom': '2px solid #dee2e6'},
+            style_cell={'padding': '10px', 'textAlign': 'left', 'fontFamily': 'inherit'},
+            style_data={'borderBottom': '1px solid #f0f0f0'}
+        )
 
-    # 3. Quản lý vòng đời khởi tạo AIAssistant dựa trên trạng thái dữ liệu gốc
-    if ai_target_df is not None:
-        analytic_node = Analytics(ai_target_df)
-        st.session_state.ai_instance = AIAssistant(analytics_instance=analytic_node)
-    else:
-        if "ai_instance" not in st.session_state:
-            st.session_state.ai_instance = AIAssistant(analytics_instance=None)
+        success_alert = dbc.Alert([
+            html.I(className="fa-solid fa-file-csv me-2"),
+            f"Đã tải thành công: {filename}."
+        ], color="info", className="mt-3 shadow-sm rounded-3")
 
-    ai = st.session_state.ai_instance
+        return df.to_json(date_format='iso', orient='split'), success_alert, table_ui, True, modal_title, val_ui
+    
+    except Exception as e:
+        modal_title = html.Span([html.I(className="fa-solid fa-circle-xmark me-2 text-danger"), "Lỗi Xử Lý File"])
+        modal_body = dbc.Alert(f"Lỗi đọc hoặc xử lý file: {e}", color="danger")
+        return dash.no_update, html.Div(), dash.no_update, True, modal_title, modal_body
 
-    # 4. Khung hiển thị Giao diện Chatbot
-    with st.container(border=True):
-        st.markdown("#### Trợ lý AI thông minh")
-        st.caption("Truy vấn số liệu thông minh bằng ngôn ngữ tự nhiên")
-        st.divider()
 
-        if st.button("Clear Chat", use_container_width=True):
-            msg = ai.clear_chat_history()
-            st.session_state.chat_history = [{"role": "assistant", "content": msg}]
-            st.rerun()
+# Callback để đóng Modal
+@app.callback(
+    Output('validation-modal', 'is_open', allow_duplicate=True),
+    Input('modal-close-button', 'n_clicks'),
+    prevent_initial_call=True,
+)
+def close_validation_modal(n_clicks):
+    if n_clicks:
+        return False
+    return dash.no_update
 
-        # Khung chứa nội dung chat hội thoại (Cố định chiều cao, tự động cuộn)
-        chat_container = st.container(height=500, key="chat_container")
 
-        # Hiển thị lịch sử chat an toàn sau khi đã chắc chắn được khởi tạo
-        with chat_container:
-            for message in st.session_state.chat_history:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+# 2. Cập nhật Filters (Dropdowns) khi có dữ liệu
+@app.callback(
+    Output('filter-city', 'options'), Output('filter-product', 'options'),
+    Output('filter-gender', 'options'), Output('filter-customer', 'options'),
+    Output('filter-date', 'min_date_allowed'), Output('filter-date', 'max_date_allowed'),
+    Input('stored-data', 'data')
+)
+def update_dropdowns(json_data):
+    if json_data is None:
+        return [], [], [], [], None, None
+    df = pd.read_json(io.StringIO(json_data), orient='split')
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    dates = df['Date'].dropna()
 
-        # Đọc dữ liệu đầu vào từ thanh chat_input của người dùng
-        if prompt := st.chat_input("Ask assistant...", key="chat_input"):
-            with chat_container:
-                with st.chat_message("user"):
-                    st.markdown(prompt)
+    return (
+        [{'label': c, 'value': c} for c in df['City'].unique()],
+        [{'label': c, 'value': c} for c in df['Product line'].unique()],
+        [{'label': c, 'value': c} for c in df['Gender'].unique()],
+        [{'label': c, 'value': c} for c in df['Customer type'].unique()],
+        dates.min().date() if not dates.empty else None,
+        dates.max().date() if not dates.empty else None
+    )
 
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-            with chat_container:
-                with st.chat_message("assistant"):
-                    with st.spinner("AI đang truy vấn dữ liệu..."):
-                        try:
-                            # Thực thi gọi hàm phân tích tự động (Function Calling)
-                            ai_response = ai.chat_with_data(prompt)
-                            st.markdown(ai_response)
-                            st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
-                        except Exception as e:
-                            st.error(f"Lỗi kết nối trợ lý AI: {e}")
+# 3. Cập nhật Dashboard (Biểu đồ & KPIs)
+@app.callback(
+    Output('kpi-total-sales', 'children'), Output('kpi-avg-sales', 'children'),
+    Output('fig-payment', 'figure'), Output('fig-category', 'figure'),
+    Output('fig-rating-dist', 'figure'), Output('fig-rating-cat', 'figure'),
+    Output('fig-branch-perf', 'figure'), Output('fig-customer-gender', 'figure'),
+    Output('fig-shopping-hours', 'figure'), Output('fig-forecast-revenue', 'figure'),
+    Input('stored-data', 'data'),
+    Input('filter-city', 'value'), Input('filter-product', 'value'),
+    Input('filter-gender', 'value'), Input('filter-customer', 'value'), Input('filter-date', 'date'),
+    Input('chart1-type', 'value'), Input('chart2-type', 'value'),
+    Input('chart3-type', 'value'), Input('chart4-type', 'value')
+)
+def update_dashboard(json_data, cities, products, genders, customers, date, c1, c2, c3, c4):
+    if json_data is None:
+        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}
+
+    df = pd.read_json(io.StringIO(json_data), orient='split')
+    processor=DataProcessor(df)
+    df=processor.run_pipeline()
+    # Lọc dữ liệu
+    if cities:
+        df = df[df['City'].isin(cities)]
+    if products:
+        df = df[df['Product line'].isin(products)]
+    if genders:
+        df = df[df['Gender'].isin(genders)]
+    if customers:
+        df = df[df['Customer type'].isin(customers)]
+    # if date:
+    #     df = df[df['Date'].dt.date == pd.to_datetime(date).date()]
+
+    if df.empty:
+        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}
+
+    # KPIs
+    kpi_tot = f"${df['Sales'].sum():,.0f}"
+    kpi_avg = f"${df['Sales'].mean():,.2f}"
+
+    # Vẽ biểu đồ
+    builder = ChartBuilder(df)
+    fig1 = builder.payment_chart(c1)
+    fig2 = builder.category_chart(c2)
+    fig3 = builder.rating_distribution(c3)
+    fig4 = builder.rating_by_category(c4)
+
+    # Biểu đồ mới
+    fig5 = builder.branch_performance_chart()
+    fig6 = builder.customer_gender_revenue_chart()
+    fig7 = builder.shopping_hours_chart()
+    
+    # Cần kiểm tra xem có đủ dữ liệu lịch sử để dự báo hay không
+    try:
+        fig8 = builder.forecast_revenue_chart()
+    except Exception:
+        # Trong trường hợp không đủ dữ liệu (ví dụ đã filter quá nhỏ)
+        import plotly.graph_objects as go
+        fig8 = go.Figure()
+        fig8.add_annotation(text="Không đủ dữ liệu để dự báo", x=0.5, y=0.5, showarrow=False)
+
+    # Styling chung cho tất cả các biểu đồ
+    for fig in [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8]:
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=30, b=20, l=20, r=20),
+            font=dict(family="inherit", color="#495057"),
+            title_font=dict(size=16, color="#212529"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+
+    return kpi_tot, kpi_avg, fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8
+
+
+# 4. Logic Đóng/Mở Trợ lý AI
+@app.callback(
+    Output("offcanvas-ai", "is_open"),
+    Input("btn-open-ai", "n_clicks"),
+    State("offcanvas-ai", "is_open"),
+)
+def toggle_ai(n1, is_open):
+    if n1:
+        return not is_open
+    return is_open
+
+
+# Khởi tạo một phiên bản toàn cục (Global) của AI để tránh khởi tạo lại nhiều lần nếu không cần thiết
+global_ai_instance = AIAssistant()
+
+
+
+# 5. Logic Chatbot AI
+@app.callback(
+    Output('chat-history', 'data'),
+    Output('chat-display', 'children'),
+    Output('chat-input', 'value'),
+    Input('chat-submit', 'n_clicks'),
+    Input('chat-clear', 'n_clicks'),
+    State('chat-input', 'value'),
+    State('chat-history', 'data'),
+    State('stored-data', 'data'),
+    prevent_initial_call=True
+)
+def manage_chat(n_submit, n_clear, user_text, history, json_data):
+    trigger = ctx.triggered_id
+
+    # Nếu người dùng bấm Clear
+    if trigger == 'chat-clear':
+        global_ai_instance.clear_chat_history() # Xóa lịch sử trong Gemini
+        new_hist = [{"role": "assistant", "content": "Lịch sử đã xóa. Tôi có thể giúp gì tiếp?"}]
+        return new_hist, render_chat(new_hist), ""
+
+    # Nếu submit tin nhắn
+    if trigger == 'chat-submit' and user_text:
+        history.append({"role": "user", "content": user_text})
+
+        # Gọi AIAssistant
+        ai_response = "Xin lỗi, hãy tải file dữ liệu lên trước."
+        if json_data:
+            df = pd.read_json(io.StringIO(json_data), orient='split')
+            # Cập nhật dữ liệu mới nhất vào instance AI
+            analytic_node = Analytics(df)
+            global_ai_instance.analytics = analytic_node 
+            
+            try:
+                # Chat với API
+                ai_response = global_ai_instance.chat_with_data(user_text)
+            except Exception as e:
+                ai_response = f"Lỗi AI: {str(e)}"
+
+        history.append({"role": "assistant", "content": ai_response})
+        return history, render_chat(history), ""
+
+    return history, render_chat(history), dash.no_update
+
+
+def render_chat(history):
+    """Hàm tạo giao diện HTML cho list tin nhắn"""
+    chat_bubbles = []
+    for msg in history:
+        is_user = msg["role"] == "user"
+        align = "end" if is_user else "start"
+        bg_color = "#0d6efd" if is_user else "#ffffff"
+        text_color = "white" if is_user else "#212529"
+        border = "none" if is_user else "1px solid #dee2e6"
+        chat_bubbles.append(
+            html.Div(
+                html.Div(dcc.Markdown(msg["content"]), style={
+                    "display": "inline-block", "padding": "12px 18px",
+                    "borderRadius": "20px", "backgroundColor": bg_color, "color": text_color,
+                    "border": border, "boxShadow": "0 2px 5px rgba(0,0,0,0.05)",
+                    "maxWidth": "85%", "marginBottom": "12px", "textAlign": "left",
+                    "borderBottomRightRadius": "5px" if is_user else "20px",
+                    "borderBottomLeftRadius": "20px" if is_user else "5px",
+                }),
+                style={"textAlign": align, "width": "100%"}
+            )
+        )
+    return chat_bubbles
+
+
+if __name__ == '__main__':
+    app.run(port=8050, debug=True)

@@ -1,6 +1,5 @@
 import pandas as pd
 from pandas import DataFrame
-import numpy as np
 from sklearn.linear_model import LinearRegression
 
 
@@ -151,9 +150,7 @@ class Analytics:
     #Dự báo doanh thu 30 ngày tiếp theo
     def forecast_next_month_revenue(self)->pd.DataFrame:
         df_daily_revenue=self.df.groupby(['Year','Month','Day'])['Sales'].sum().reset_index()
-
         df_daily_revenue['Day_Index']=df_daily_revenue.index
-        print(df_daily_revenue)
         X=df_daily_revenue[['Day_Index']]
         y=df_daily_revenue['Sales']
         model=LinearRegression()
@@ -171,3 +168,11 @@ class Analytics:
             }
         )
         return forecast_df
+
+    def advanced_customer_segmentation(self) -> pd.DataFrame:
+        """
+        Sử dụng thuật toán K-Means để phân cụm hành vi mua sắm của khách hàng
+        dựa trên số lượng đơn hàng và tổng chi tiêu của họ.
+        """
+
+        pass

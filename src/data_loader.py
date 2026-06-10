@@ -17,7 +17,7 @@ class DataLoader:
         else:
             raise ValueError('Lỗi định dạng file: Chỉ hỗ trợ định dạng .csv hoặc .xlsx/.xls')
         if not os.path.exists(self.pathname):
-            raise ValueError(f'Không tìm thấy file tại đường dẫn: {self.pathname}')
+            raise FileNotFoundError(f'Không tìm thấy file tại đường dẫn: {self.pathname}')
         if os.path.getsize(self.pathname) == 0:
             raise ValueError(f'File {self.pathname} lỗi: Kích thước bằng 0 (File trống)')
 

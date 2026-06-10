@@ -22,7 +22,7 @@ class AIAssistant:
             raise ValueError('Không tìm thấy API Key')
         #Khởi tạo client kết nối (ví dụ: genai.Client(api_key=...))
         self.client=genai.Client(api_key=self.api_key)
-        self.model='gemma-4-26b-a4b-it'
+        self.model='gemma-4-31b-it'
         self.analytics=analytics_instance
         self.chat_session=None
 
@@ -231,6 +231,9 @@ class AIAssistant:
         return 'Không có dữ liệu phân tích lợi nhuận trên giá vốn.'
 
 
+
+
+
     def summarize_monthly_performance(self, monthly_df: pd.DataFrame):
         """
         Tính năng: Tóm tắt báo cáo kinh doanh hàng tháng.
@@ -285,6 +288,29 @@ class AIAssistant:
         response=self._call_api(system_prompt,user_prompt)
         return response.text
 
+
+    def advise_on_predictions(self) -> str:
+        """
+        Tính năng: Gọi mô hình toán học dự báo doanh thu,
+        sau đó đưa số liệu cho GenAI để lên chiến lược kinh doanh.
+        """
+        if self.analytics:
+            df_predict=self.analytics.forecast_next_month_revenue()
+            df_to_markdown=df_predict.to_markdown(index=False)
+            system_prompt="Bạn là Giám đốc Tài chính và Chiến lược (CFO) của chuỗi siêu thị."
+            user_prompt=f"""
+                Dưới đây là bảng kết quả dự báo doanh thu của 30 ngày tới do mô hình Machine Learning tính toán:
+                {df_to_markdown}
+        
+                Dựa vào xu hướng doanh thu dự báo trên, hãy đưa ra:
+                1. Nhận định ngắn gọn về xu hướng (tăng trưởng, đi ngang hay sụt giảm).
+                2. Đề xuất chiến lược phân bổ dòng vốn (nhập hàng) và kế hoạch khuyến mãi kích cầu cho các giai đoạn thấp điểm trong tháng tới.
+                Hãy trả lời súc tích bằng tiếng Việt, chia theo các gạch đầu dòng rõ ràng.
+                """
+            response=self._call_api(system_prompt, user_prompt)
+            return response.text
+        return 'Không có dữ liệu để dự đoán'
+
     def chat_with_data(self, user_question: str) -> str | None:
         """
         Tính năng: Chatbot thông minh tự động chọn hàm và phân tích dữ liệu
@@ -303,14 +329,16 @@ class AIAssistant:
             self.get_shopping_hours_analysis,
             self.get_product_line_revenue,
             self.get_product_line_rating,
-            self.get_customer_loyalty_value,self.get_average_order_value_info,
+            self.get_customer_loyalty_value,
+            self.get_average_order_value_info,
             self.get_basket_size_analysis,
             self.get_rating_vs_sales_correlation,
             self.get_executive_summary_kpi,
             self.get_revenue_forecast,
             self.get_low_rating_bottlenecks,
             self.get_high_profit_low_cogs_info,
-            self.execute_dynamic_pandas_query]
+            self.execute_dynamic_pandas_query,
+            self.advise_on_predictions]
 
         try:
             if self.chat_session is None:
@@ -355,12 +383,3 @@ class AIAssistant:
         except Exception as e:
             return f"Lỗi code: {str(e)}. Hãy kiểm tra lại tên cột hoặc cú pháp Pandas và tự sửa lại nhé."
 
-    def advise_on_predictions(self, forecast_df: pd.DataFrame) -> str:
-        """
-        Tính năng (Nâng cao - Làm sau cùng): Phân tích dự báo tương lai.
-        """
-        # TODO 1: Chuyển bảng kết quả dự đoán forecast_df thành chuỗi văn bản.
-        # TODO 2: Thiết kế prompt lồng ghép số liệu dự báo, yêu cầu AI đưa ra chiến lược vốn và khuyến mãi cho tháng tới.
-        # TODO 3: Gọi hàm self._call_api(...) và trả về kết quả.
-
-        pass
