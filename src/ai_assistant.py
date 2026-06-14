@@ -338,7 +338,7 @@ class AIAssistant:
             self.get_low_rating_bottlenecks,
             self.get_high_profit_low_cogs_info,
             self.execute_dynamic_pandas_query,
-            self.advise_on_predictions]
+            ]
 
         try:
             if self.chat_session is None:
@@ -368,7 +368,6 @@ class AIAssistant:
 
         Args:
             generated_code: Đoạn code Python sử dụng thư viện pandas để tính toán trên biến 'df'.
-                            BẮT BUỘC phải sử dụng hàm print() để in kết quả ra màn hình (ví dụ: print(df['Sales'].max())).
         """
         if not self.analytics:
             return "Lỗi: Không thể truy cập dữ liệu DataFrame từ class Analytics."

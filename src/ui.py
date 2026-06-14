@@ -4,7 +4,6 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import base64
 import io
-import json
 
 from data_validator import DataValidator
 from data_processor import DataProcessor
@@ -12,12 +11,62 @@ from ai_assistant import AIAssistant
 from analytics import Analytics
 from visualization import ChartBuilder
 
+from database_connector import DatabaseConnector
+from apscheduler.schedulers.background import BackgroundScheduler
+import time
+import atexit
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.LITERA, dbc.icons.FONT_AWESOME],
     suppress_callback_exceptions=True
 )
 app.title = "Supermarket Dashboard"
+
+# ==========================================
+# GLOBAL INSTANCES AND DATA MANAGEMENT
+# ==========================================
+
+# Global AI Assistant instance
+global_ai_instance = AIAssistant()
+
+# Global Database Connector instance
+db_connector = DatabaseConnector()
+
+# Global variable to hold processed data from DB, updated by scheduler
+# This will be read by a dcc.Interval callback to update the dcc.Store
+global_processed_df_json = None
+
+# Function to load and process data from DB
+def load_and_process_db_data():
+    global global_processed_df_json
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Attempting to load data from database...")
+    try:
+        # Assuming your table name is 'sales_data' as per previous discussion
+        df_raw = db_connector.fetch_data_to_dataframe(table_name="sales_data")
+        if not df_raw.empty:
+            processor = DataProcessor(df_raw)
+            processed_df = processor.run_pipeline()
+            global_processed_df_json = processed_df.to_json(date_format='iso', orient='split')
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Data loaded and processed from database. {len(processed_df)} rows.")
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] No data fetched from database.")
+            global_processed_df_json = None # Clear data if nothing fetched
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error loading data from database: {e}")
+        global_processed_df_json = None # Clear data on error
+
+# Initial load of data when the app starts
+load_and_process_db_data()
+
+# Setup APScheduler for periodic background updates
+scheduler = BackgroundScheduler()
+# Schedule to run load_and_process_db_data every 5 minutes (adjust as needed)
+scheduler.add_job(load_and_process_db_data, 'interval', minutes=5)
+scheduler.start()
+
+# Ensure scheduler shuts down when the app exits
+atexit.register(lambda: scheduler.shutdown())
 
 # ==========================================
 # CÁC THÀNH PHẦN GIAO DIỆN CHÍNH
@@ -112,7 +161,7 @@ tab_visualization = html.Div([
                 ], align="center")
             ])
         ], className="border-0 shadow-sm rounded-3"), width=12, md=6, className="mb-4"),
-        
+
         dbc.Col(dbc.Card([
             dbc.CardBody([
                 dbc.Row([
@@ -217,9 +266,16 @@ tab_visualization = html.Div([
 # Layout chính
 app.layout = html.Div([
     # Lưu trữ dữ liệu ngầm trên trình duyệt
-    dcc.Store(id='stored-data', data=None),
+    dcc.Store(id='stored-data', data=global_processed_df_json), # Use data from database
     dcc.Store(id='chat-history', data=[
         {"role": "assistant", "content": "Xin chào! Tôi là AI Assistant. Tôi có thể giúp gì cho bạn hôm nay?"}]),
+
+    # Add dcc.Interval to trigger periodic updates to stored-data from the global variable
+    dcc.Interval(
+        id='interval-component',
+        interval=30*1000, # in milliseconds, update every 30 seconds
+        n_intervals=0
+    ),
 
     navbar,
 
@@ -259,7 +315,7 @@ app.layout = html.Div([
             html.Div(id='chat-display',
                      style={"height": "70vh", "overflowY": "auto", "padding": "15px", "backgroundColor": "#f8f9fa",
                             "borderRadius": "15px", "marginBottom": "20px", "boxShadow": "inset 0 0 10px rgba(0,0,0,0.05)"}),
-            
+
             # Thêm Loading component bao quanh InputGroup
             dcc.Loading(
                 id="loading-chat",
@@ -272,7 +328,7 @@ app.layout = html.Div([
                     ], className="mb-2 shadow-sm"),
                 ]
             ),
-            
+
             dbc.Button([html.I(className="fa-solid fa-trash me-2"), "Xóa lịch sử trò chuyện"], id="chat-clear", color="outline-danger", size="sm", className="w-100 rounded-pill mt-2")
         ]),
         id="offcanvas-ai",
@@ -288,16 +344,31 @@ app.layout = html.Div([
 # ==========================================
 
 
+# New callback to update stored-data from the global variable periodically
+@app.callback(
+    Output('stored-data', 'data', allow_duplicate=True),
+    Input('interval-component', 'n_intervals'),
+    prevent_initial_call=True
+)
+def update_stored_data_from_global(n_intervals):
+    # This callback is triggered by the interval component
+    # It reads the global_processed_df_json which is updated by the APScheduler job
+    if global_processed_df_json is not None:
+        return global_processed_df_json
+    return dash.no_update
+
+
 # 1. Xử lý Upload Dữ liệu & Validation -> Hiển thị trên Modal
 @app.callback(
-    Output('stored-data', 'data'),
+    Output('stored-data', 'data', allow_duplicate=True), # Added allow_duplicate=True
     Output('upload-status-alert', 'children'),
     Output('data-table-container', 'children'),
     Output('validation-modal', 'is_open'),
     Output('validation-modal-header', 'children'),
     Output('validation-modal-body', 'children'),
     Input('upload-data', 'contents'),
-    State('upload-data', 'filename')
+    State('upload-data', 'filename'),
+    prevent_initial_call=True
 )
 def process_upload(contents, filename):
     if contents is None:
@@ -314,7 +385,7 @@ def process_upload(contents, filename):
 
         modal_title = ""
         val_ui = ""
-        
+
         # Giao diện kết quả Validation
         if not ket_qua:
             modal_title = html.Span([html.I(className="fa-solid fa-circle-check me-2 text-success"), "Dữ liệu Hoàn Hảo!"])
@@ -355,7 +426,7 @@ def process_upload(contents, filename):
         ], color="info", className="mt-3 shadow-sm rounded-3")
 
         return df.to_json(date_format='iso', orient='split'), success_alert, table_ui, True, modal_title, val_ui
-    
+
     except Exception as e:
         modal_title = html.Span([html.I(className="fa-solid fa-circle-xmark me-2 text-danger"), "Lỗi Xử Lý File"])
         modal_body = dbc.Alert(f"Lỗi đọc hoặc xử lý file: {e}", color="danger")
@@ -448,7 +519,7 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
     fig5 = builder.branch_performance_chart()
     fig6 = builder.customer_gender_revenue_chart()
     fig7 = builder.shopping_hours_chart()
-    
+
     # Cần kiểm tra xem có đủ dữ liệu lịch sử để dự báo hay không
     try:
         fig8 = builder.forecast_revenue_chart()
@@ -484,15 +555,10 @@ def toggle_ai(n1, is_open):
     return is_open
 
 
-# Khởi tạo một phiên bản toàn cục (Global) của AI để tránh khởi tạo lại nhiều lần nếu không cần thiết
-global_ai_instance = AIAssistant()
-
-
-
 # 5. Logic Chatbot AI
 @app.callback(
     Output('chat-history', 'data'),
-    Output('chat-display', 'children'),
+    Output('chat-display', 'children', allow_duplicate=True),
     Output('chat-input', 'value'),
     Input('chat-submit', 'n_clicks'),
     Input('chat-clear', 'n_clicks'),
@@ -520,8 +586,8 @@ def manage_chat(n_submit, n_clear, user_text, history, json_data):
             df = pd.read_json(io.StringIO(json_data), orient='split')
             # Cập nhật dữ liệu mới nhất vào instance AI
             analytic_node = Analytics(df)
-            global_ai_instance.analytics = analytic_node 
-            
+            global_ai_instance.analytics = analytic_node
+
             try:
                 # Chat với API
                 ai_response = global_ai_instance.chat_with_data(user_text)
@@ -532,6 +598,19 @@ def manage_chat(n_submit, n_clear, user_text, history, json_data):
         return history, render_chat(history), ""
 
     return history, render_chat(history), dash.no_update
+
+
+# 6. Hiển thị Lịch sử Chat khi mở Offcanvas
+@app.callback(
+    Output('chat-display', 'children', allow_duplicate=True),
+    Input('offcanvas-ai', 'is_open'),
+    State('chat-history', 'data'),
+    prevent_initial_call=True
+)
+def show_chat_on_open(is_open, history):
+    if is_open:
+        return render_chat(history)
+    return dash.no_update
 
 
 def render_chat(history):
@@ -557,7 +636,3 @@ def render_chat(history):
             )
         )
     return chat_bubbles
-
-
-if __name__ == '__main__':
-    app.run(port=8050, debug=True)
