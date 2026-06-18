@@ -1,6 +1,7 @@
 import os
-
-import google
+import io
+import contextlib
+import json
 import pandas as pd
 from dotenv import load_dotenv
 from google import genai
@@ -9,8 +10,6 @@ from google.genai.types import GenerateContentResponse
 from googleapiclient import errors
 
 from analytics import Analytics
-from data_loader import DataLoader
-from data_processor import DataProcessor
 
 
 class AIAssistant:
@@ -18,12 +17,12 @@ class AIAssistant:
         load_dotenv() #load file .env
         #Đọc biến môi trường AI_API_KEY từ file .env
         self.api_key=os.getenv("GEMINI_API_KEY")
-        # Kiểm tra nếu không có API Key thì báo lỗi (raise ValueError)
+
         if not self.api_key:
             raise ValueError('Không tìm thấy API Key')
         #Khởi tạo client kết nối (ví dụ: genai.Client(api_key=...))
         self.client=genai.Client(api_key=self.api_key)
-        self.model='gemma-4-26b-a4b-it'
+        self.model='gemma-4-31b-it'
         self.analytics=analytics_instance
         self.chat_session=None
 
@@ -150,6 +149,119 @@ class AIAssistant:
             df = self.analytics.calculate_loyalty_value()
             return df.to_markdown(index=False)
         return 'Không có dữ liệu phân tích mức độ trung thành.'
+
+    def get_average_order_value_info(self) -> str:
+        """
+        Lấy thông tin giá trị đơn hàng trung bình phân theo từng Chi nhánh và Loại khách hàng.
+        Hàm này được gọi khi người dùng muốn biết nhóm khách hàng nào đang mua giỏ hàng "giá trị cao" để tìm cơ hội upsell, hoặc hỏi về giá trị trung bình của mỗi đơn hàng.
+        """
+        if self.analytics:
+            df_aov = self.analytics.calculate_average_order_value()
+            # Reset index để hiển thị rõ cột Branch và Customer type trong markdown
+            return df_aov.reset_index().to_markdown(index=False)
+        return 'Không có dữ liệu phân tích giá trị đơn hàng trung bình.'
+
+    def get_basket_size_analysis(self) -> str:
+        """
+        Phân tích số lượng sản phẩm trung bình trên một đơn hàng theo từng Ngành hàng.
+        Hàm này được gọi khi người dùng hỏi về quy mô giỏ hàng, xu hướng mua nhiều/ít sản phẩm trong một lần mua, hoặc số lượng mua trung bình của các loại sản phẩm/ngành hàng.
+        """
+        if self.analytics:
+            df_basket = self.analytics.analyze_basket_size()
+            return df_basket.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích quy mô giỏ hàng.'
+
+    def get_rating_vs_sales_correlation(self) -> str:
+        """
+        Tính hệ số tương quan (Correlation) giữa điểm đánh giá (Rating) và doanh số (Sales).
+        Hàm này được gọi khi người dùng thắc mắc liệu khách hàng mua đơn hàng lớn có khó tính hơn (cho điểm thấp hơn) không, hoặc muốn biết mối liên hệ giữa doanh thu và mức độ hài lòng.
+        """
+        if self.analytics:
+            correlation = self.analytics.analyze_rating_vs_sales_correlation()
+            return f"Hệ số tương quan giữa Rating và Sales là: {correlation}"
+        return 'Không có dữ liệu để tính toán hệ số tương quan.'
+
+    def get_executive_summary_kpi(self) -> str:
+        """
+        Lấy bảng tổng hợp các chỉ số sức khỏe tài chính cốt lõi của siêu thị (KPIs) bao gồm: tổng doanh thu, tổng lợi nhuận, số lượng đơn, biên lợi nhuận, AOV và điểm đánh giá trung bình.
+        Hàm này được gọi khi người dùng muốn có cái nhìn tổng quan về tình hình kinh doanh, sức khỏe tài chính, hoặc xem báo cáo tóm tắt.
+        """
+        if self.analytics:
+            summary_dict = self.analytics.get_executive_summary()
+            # Chuyển đổi dictionary thành JSON string định dạng đẹp để AI dễ đọc
+            return json.dumps(summary_dict, indent=4, ensure_ascii=False)
+        return 'Không có dữ liệu báo cáo tổng quan.'
+
+    def get_revenue_forecast(self) -> str:
+        """
+        Dự báo doanh thu trong 30 ngày tiếp theo dựa trên dữ liệu lịch sử.
+        Hàm này được gọi khi người dùng yêu cầu dự đoán doanh thu, xu hướng bán hàng trong tháng tới, hoặc ước tính doanh số tương lai.
+        """
+        if self.analytics:
+            forecast_df = self.analytics.forecast_next_month_revenue()
+            return forecast_df.to_markdown(index=False)
+        return 'Không thể thực hiện dự báo doanh thu lúc này.'
+
+    def get_low_rating_bottlenecks(self) -> str:
+        """
+        Phân tích các yếu tố (điểm nghẽn) gây ra điểm đánh giá thấp (dưới 5 sao) phân theo Chi nhánh và Ngành hàng.
+        Hàm này được gọi khi người dùng muốn tìm hiểu nguyên nhân khiến khách hàng không hài lòng, những chi nhánh hay ngành hàng nào đang bị phàn nàn nhiều nhất.
+        """
+        if self.analytics:
+            result = self.analytics.analyze_low_rating_bottlenecks()
+            if not result:
+                return "Không có dữ liệu đánh giá thấp nào (tất cả đều từ 5 sao trở lên)."
+
+            by_branch, by_product = result
+            report = "### Phân tích đánh giá thấp theo Chi nhánh:\n"
+            report += by_branch.to_markdown(index=False)
+            report += "\n\n### Phân tích đánh giá thấp theo Ngành hàng:\n"
+            report += by_product.to_markdown(index=False)
+            return report
+        return 'Không có dữ liệu phân tích các đánh giá thấp.'
+
+    def get_high_profit_low_cogs_info(self) -> str:
+        """
+        Lấy danh sách các ngành hàng có tỷ lệ lợi nhuận trên giá vốn (Profit per COGS) cao.
+        Hàm này được gọi khi người dùng muốn xác định ngành hàng nào mang lại lợi nhuận biên tốt nhất để tập trung kinh doanh, hoặc so sánh hiệu quả chi phí của các ngành hàng.
+        """
+        if self.analytics:
+            df_profit = self.analytics.calculate_high_profit_low_cogs()
+            return df_profit.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích lợi nhuận trên giá vốn.'
+
+    def get_customer_segmentation(self) -> str:
+        """
+        Phân khúc khách hàng bằng Machine Learning (K-Means) thành các nhóm: Phổ thông, Tiềm năng, VIP.
+        Dựa trên tổng chi tiêu, số lượng đơn hàng và số lượng sản phẩm trung bình.
+        Hàm này được gọi khi khách hỏi về phân loại khách hàng hoặc nhóm khách hàng quan trọng nhất.
+        """
+        if self.analytics:
+            df = self.analytics.advanced_customer_segmentation()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân khúc khách hàng.'
+    def get_forecast_sales(self)->str:
+        """
+        Dự báo doanh thu trong 30 ngày tiếp theo dựa trên dữ liệu lịch sử.
+        Hàm này được gọi khi người dùng yêu cầu dự đoán doanh thu, xu hướng bán hàng trong tháng tới,
+        hoặc ước tính doanh số tương lai.
+        """
+        if self.analytics:
+            df=self.analytics.forecast_next_month_revenue()
+            df=df.to_markdown(index=False)
+            return df
+        return 'Không thể thực hiện dự báo doanh thu lúc này.'
+
+    def get_correlation_matrix(self)->str:
+        """
+        Hàm này dùng để phân tích ma trận tương quan giữa các cột số quan trọng.
+        """
+        if self.analytics:
+            df=self.analytics.calculate_correlation_matrix()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích.'
+
+
     def summarize_monthly_performance(self, monthly_df: pd.DataFrame):
         """
         Tính năng: Tóm tắt báo cáo kinh doanh hàng tháng.
@@ -175,10 +287,10 @@ class AIAssistant:
         worst_product=top_best_top_worst[1].to_markdown(index=False)
         system_prompt='Bạn là Giám đốc Quản lý Chuỗi cung ứng (Supply Chain Manager).'
         user_prompt=f"""
-        Dưới đây là bảng dữ liệu TOP 5 ngành hàng BÁN CHẠY NHẤT:
+        Dưới đây là bảng dữ liệu TOP 3 ngành hàng BÁN CHẠY NHẤT:
         {best_product}
         
-        Dữ liệu TOP 5 ngành hàng BÁN Ế NHẤT:
+        Dữ liệu TOP 3 ngành hàng BÁN Ế NHẤT:
         {worst_product}
         
         Dựa vào số liệu trên, hãy:
@@ -204,6 +316,29 @@ class AIAssistant:
         response=self._call_api(system_prompt,user_prompt)
         return response.text
 
+
+    def advise_on_predictions(self) -> str:
+        """
+        Tính năng: Gọi mô hình toán học dự báo doanh thu,
+        sau đó đưa số liệu cho GenAI để lên chiến lược kinh doanh.
+        """
+        if self.analytics:
+            df_predict=self.analytics.forecast_next_month_revenue()
+            df_to_markdown=df_predict.to_markdown(index=False)
+            system_prompt="Bạn là Giám đốc Tài chính và Chiến lược (CFO) của chuỗi siêu thị."
+            user_prompt=f"""
+                Dưới đây là bảng kết quả dự báo doanh thu của 30 ngày tới do mô hình Machine Learning tính toán:
+                {df_to_markdown}
+        
+                Dựa vào xu hướng doanh thu dự báo trên, hãy đưa ra:
+                1. Nhận định ngắn gọn về xu hướng (tăng trưởng, đi ngang hay sụt giảm).
+                2. Đề xuất chiến lược phân bổ dòng vốn (nhập hàng) và kế hoạch khuyến mãi kích cầu cho các giai đoạn thấp điểm trong tháng tới.
+                Hãy trả lời súc tích bằng tiếng Việt, chia theo các gạch đầu dòng rõ ràng.
+                """
+            response=self._call_api(system_prompt, user_prompt)
+            return response.text
+        return 'Không có dữ liệu để dự đoán'
+
     def chat_with_data(self, user_question: str) -> str | None:
         """
         Tính năng: Chatbot thông minh tự động chọn hàm và phân tích dữ liệu
@@ -222,7 +357,19 @@ class AIAssistant:
             self.get_shopping_hours_analysis,
             self.get_product_line_revenue,
             self.get_product_line_rating,
-            self.get_customer_loyalty_value]
+            self.get_customer_loyalty_value,
+            self.get_average_order_value_info,
+            self.get_basket_size_analysis,
+            self.get_rating_vs_sales_correlation,
+            self.get_executive_summary_kpi,
+            self.get_revenue_forecast,
+            self.get_low_rating_bottlenecks,
+            self.get_high_profit_low_cogs_info,
+            self.get_customer_segmentation,
+            self.execute_dynamic_pandas_query,
+            self.get_forecast_sales,
+            self.get_correlation_matrix
+            ]
 
         try:
             if self.chat_session is None:
@@ -245,12 +392,21 @@ class AIAssistant:
         self.chat_session = None
         return "Đã xóa lịch sử trò chuyện. Bạn có muốn hỏi về chủ đề mới không?"
 
-    def advise_on_predictions(self, forecast_df: pd.DataFrame) -> str:
+    def execute_dynamic_pandas_query(self, generated_code: str) -> str:
         """
-        Tính năng (Nâng cao - Làm sau cùng): Phân tích dự báo tương lai.
+        Thực thi mã Python/Pandas động tự động để phân tích dữ liệu tùy biến trên DataFrame.
+        Hàm này BẮT BUỘC ĐƯỢC GỌI khi các hàm báo cáo cụ thể trong tools có sẵn KHÔNG đáp ứng được câu hỏi chi tiết, phức tạp của người dùng.
+        Args: generated_code: Đoạn code Python sử dụng thư viện pandas để tính toán trên DataFrame.
         """
-        # TODO 1: Chuyển bảng kết quả dự đoán forecast_df thành chuỗi văn bản.
-        # TODO 2: Thiết kế prompt lồng ghép số liệu dự báo, yêu cầu AI đưa ra chiến lược vốn và khuyến mãi cho tháng tới.
-        # TODO 3: Gọi hàm self._call_api(...) và trả về kết quả.
-
-        pass
+        if not self.analytics:
+            return "Lỗi: Không thể truy cập dữ liệu DataFrame từ class Analytics."
+        df_source = self.analytics.df
+        local_vars = {'df': df_source, 'pd': pd}
+        stdout_capture = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(stdout_capture):
+                exec(generated_code, {}, local_vars)
+            result = stdout_capture.getvalue()
+            return result
+        except Exception as e:
+            return f"Lỗi code: {str(e)}. Hãy kiểm tra lại tên cột hoặc cú pháp Pandas và tự sửa lại nhé."

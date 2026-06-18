@@ -11,7 +11,7 @@ class DataProcessor:
 
     def normalize_dtypes(self):
         self.df['Date'] = pd.to_datetime(self.df['Date'])
-        self.df['Time']=pd.to_datetime(self.df['Time'],format='%I:%M:%S %p')
+        self.df['Time'] = pd.to_datetime(self.df['Time'], format='mixed')
         currency_cols = ['Unit price', 'Tax 5%', 'Sales', 'cogs', 'gross income']
         for i in currency_cols:
             self.df[i] = self.df[i].astype(float)
