@@ -230,8 +230,36 @@ class AIAssistant:
             return df_profit.to_markdown(index=False)
         return 'Không có dữ liệu phân tích lợi nhuận trên giá vốn.'
 
+    def get_customer_segmentation(self) -> str:
+        """
+        Phân khúc khách hàng bằng Machine Learning (K-Means) thành các nhóm: Phổ thông, Tiềm năng, VIP.
+        Dựa trên tổng chi tiêu, số lượng đơn hàng và số lượng sản phẩm trung bình.
+        Hàm này được gọi khi khách hỏi về phân loại khách hàng hoặc nhóm khách hàng quan trọng nhất.
+        """
+        if self.analytics:
+            df = self.analytics.advanced_customer_segmentation()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân khúc khách hàng.'
+    def get_forecast_sales(self)->str:
+        """
+        Dự báo doanh thu trong 30 ngày tiếp theo dựa trên dữ liệu lịch sử.
+        Hàm này được gọi khi người dùng yêu cầu dự đoán doanh thu, xu hướng bán hàng trong tháng tới,
+        hoặc ước tính doanh số tương lai.
+        """
+        if self.analytics:
+            df=self.analytics.forecast_next_month_revenue()
+            df=df.to_markdown(index=False)
+            return df
+        return 'Không thể thực hiện dự báo doanh thu lúc này.'
 
-
+    def get_correlation_matrix(self)->str:
+        """
+        Hàm này dùng để phân tích ma trận tương quan giữa các cột số quan trọng.
+        """
+        if self.analytics:
+            df=self.analytics.calculate_correlation_matrix()
+            return df.to_markdown(index=False)
+        return 'Không có dữ liệu phân tích.'
 
 
     def summarize_monthly_performance(self, monthly_df: pd.DataFrame):
@@ -337,7 +365,10 @@ class AIAssistant:
             self.get_revenue_forecast,
             self.get_low_rating_bottlenecks,
             self.get_high_profit_low_cogs_info,
+            self.get_customer_segmentation,
             self.execute_dynamic_pandas_query,
+            self.get_forecast_sales,
+            self.get_correlation_matrix
             ]
 
         try:
@@ -346,7 +377,7 @@ class AIAssistant:
                     model=self.model,
                     config=genai.types.GenerateContentConfig(
                     system_instruction=system_prompt,
-                    temperature=0.1,
+                    temperature=0.3,
                     tools=tools_list
                 )
             )
@@ -363,11 +394,9 @@ class AIAssistant:
 
     def execute_dynamic_pandas_query(self, generated_code: str) -> str:
         """
-        Thực thi mã Python/Pandas động tự động để phân tích dữ liệu tùy biến trên DataFrame 'df'.
-        Hàm này BẮT BUỘC ĐƯỢC GỌI khi các hàm báo cáo cụ thể có sẵn KHÔNG đáp ứng được câu hỏi chi tiết, phức tạp của người dùng.
-
-        Args:
-            generated_code: Đoạn code Python sử dụng thư viện pandas để tính toán trên biến 'df'.
+        Thực thi mã Python/Pandas động tự động để phân tích dữ liệu tùy biến trên DataFrame.
+        Hàm này BẮT BUỘC ĐƯỢC GỌI khi các hàm báo cáo cụ thể trong tools có sẵn KHÔNG đáp ứng được câu hỏi chi tiết, phức tạp của người dùng.
+        Args: generated_code: Đoạn code Python sử dụng thư viện pandas để tính toán trên DataFrame.
         """
         if not self.analytics:
             return "Lỗi: Không thể truy cập dữ liệu DataFrame từ class Analytics."
@@ -381,4 +410,3 @@ class AIAssistant:
             return result
         except Exception as e:
             return f"Lỗi code: {str(e)}. Hãy kiểm tra lại tên cột hoặc cú pháp Pandas và tự sửa lại nhé."
-

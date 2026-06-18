@@ -14,16 +14,16 @@ class ChartBuilder:
     def payment_chart(self, chart_type):
         payment_df = self.analytics.calculate_revenue_and_number_of_orders_by_payment_method().reset_index()
         if chart_type == "Biểu đồ Tròn (Donut/Pie)":
-            fig = px.pie(payment_df, names='Payment', values='Total_Sales', hole=0.4,
+            fig = px.pie(payment_df, names='Payment', values='Total_Sales', hole=0.2,
                          color_discrete_sequence=px.colors.qualitative.Pastel)
             fig.update_traces(textinfo='percent+label',
-                              hovertemplate="<b>%{label}</b><br>Doanh thu: $%{value:,.0f}")
+                              hovertemplate="<b>%{label}</b><br>Doanh thu: %{value:,.0f}")
         else:
             fig = px.bar(payment_df, x='Payment', y='Total_Sales', color='Payment',
                          text='Total_Sales', color_discrete_sequence=px.colors.qualitative.Pastel)
             fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside',
-                              hovertemplate="<b>%{x}</b><br>Doanh thu: $%{y:,.0f}<extra></extra>")
-            fig.update_layout(xaxis_title="", yaxis_title="Doanh Thu ($)", showlegend=False)
+                              hovertemplate="<b>%{x}</b><br>Doanh thu: %{y:,.0f}<extra></extra>")
+            fig.update_layout(xaxis_title="", yaxis_title="Doanh Thu (VNĐ)", showlegend=False)
             fig.update_yaxes(range=[0, payment_df['Total_Sales'].max() * 1.2])
         return fig
 
@@ -33,18 +33,18 @@ class ChartBuilder:
         if chart_type == "Biểu đồ Cột Ngang (Horizontal Bar)":
             fig = px.bar(cat_df, x='Sales', y='Product line', orientation='h', text='Sales',
                          color='Sales', color_continuous_scale='Blues')
-            fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
-            fig.update_layout(xaxis_title="Doanh Thu ($)", yaxis_title="")
+            fig.update_traces(texttemplate='%{text:,.0f} VNĐ', textposition='inside')
+            fig.update_layout(xaxis_title="Doanh Thu (VNĐ)", yaxis_title="")
         elif chart_type == "Biểu đồ Cột Dọc (Vertical Bar)":
             fig = px.bar(cat_df, x='Product line', y='Sales', text='Sales',
                          color='Sales', color_continuous_scale='Blues')
-            fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
-            fig.update_layout(xaxis_title="Ngành Hàng", yaxis_title="Doanh Thu ($)")
+            fig.update_traces(texttemplate='%{text:,.0f} VNĐ', textposition='inside')
+            fig.update_layout(xaxis_title="Ngành Hàng", yaxis_title="Doanh Thu (VNĐ)")
             fig.update_yaxes(range=[0, cat_df['Sales'].max() * 1.2])
         else:
             fig = px.treemap(cat_df, path=['Product line'], values='Sales',
                              color='Sales', color_continuous_scale='Blues')
-            fig.update_traces(textinfo="label+value", texttemplate="<b>%{label}</b><br>$%{value:,.0f}")
+            fig.update_traces(textinfo="label+value", texttemplate="<b>%{label}</b><br>%{value:,.0f} VNĐ")
             fig.update_layout(margin=dict(t=10, l=10, r=10, b=10))
         return fig
 
@@ -81,8 +81,6 @@ class ChartBuilder:
         fig.update_layout(xaxis_title="Điểm Đánh Giá TB", yaxis_title="", xaxis_range=[4, 10.5])
         return fig
 
-    # -- THÊM CÁC BIỂU ĐỒ MỚI DỰA TRÊN ANALYTICS --
-
     # 5. Biểu đồ Doanh thu và Lợi nhuận theo Chi nhánh
     def branch_performance_chart(self):
         branch_df = self.analytics.calculate_branch_performance()
@@ -99,7 +97,7 @@ class ChartBuilder:
             name='Tổng Lợi Nhuận',
             marker_color='lightsalmon'
         ))
-        fig.update_layout(barmode='group', xaxis_title='Chi nhánh', yaxis_title='USD ($)', title="Hiệu suất Chi nhánh")
+        fig.update_layout(barmode='group', xaxis_title='Chi nhánh', yaxis_title='Doanh thu (VNĐ)', title="Hiệu suất Chi nhánh")
         return fig
 
     # 6. Doanh thu theo loại khách hàng và Giới tính
@@ -127,6 +125,45 @@ class ChartBuilder:
         df = self.analytics.forecast_next_month_revenue()
         fig = px.line(df, x='Day', y='Forecast_Sales', markers=True,
                       title="Dự báo Doanh thu 30 ngày tới (Linear Regression)",
-                      labels={"Day": "Ngày", "Forecast_Sales": "Doanh thu dự báo ($)"})
+                      labels={"Day": "Ngày", "Forecast_Sales": "Doanh thu dự báo (VNĐ)"})
         fig.update_traces(line_color='#28a745', line_dash="dot")
+        return fig
+
+    # 9. Biểu đồ Phân khúc Khách hàng
+    def customer_segmentation_chart(self):
+        """Vẽ biểu đồ phân cụm khách hàng dựa trên kết quả K-Means."""
+        df_seg = self.analytics.advanced_customer_segmentation()
+        
+        fig = px.scatter(
+            df_seg, 
+            x='Total_Orders', 
+            y='Total_Sales',
+            color='Customer_Segment', 
+            size='Avg_Quantity',
+            hover_data=['Customer type', 'Gender'],
+            labels={
+                "Total_Orders": "Số lượng đơn hàng", 
+                "Total_Sales": "Tổng chi tiêu (VNĐ)",
+                "Customer_Segment": "Nhóm khách hàng"
+            },
+            color_discrete_map={
+                'Khách hàng VIP': '#FFD700', 
+                'Khách hàng Tiềm năng': '#17a2b8', 
+                'Khách hàng Phổ thông': '#6c757d'
+            }
+        )
+        fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        return fig
+
+    # 10. Biểu đồ Nhiệt Tương quan
+    def correlation_heatmap_chart(self):
+        """Vẽ ma trận tương quan giữa các biến số."""
+        corr_df = self.analytics.calculate_correlation_matrix()
+        fig = px.imshow(
+            corr_df,
+            text_auto='.2f',
+            aspect="auto",
+            color_continuous_scale='RdBu_r',
+            title="Ma trận tương quan giữa các chỉ số"
+        )
         return fig

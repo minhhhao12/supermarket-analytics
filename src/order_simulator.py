@@ -6,13 +6,10 @@ import os
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta
+import requests
 
 # Khởi tạo Faker để tạo dữ liệu giả
 fake = Faker()
-
-# ==============================================================================
-# ĐỊNH NGHĨA DỮ LIỆU MẪU DỰA TRÊN FILE supermarket_data_sales.csv
-# ==============================================================================
 BRANCHES = {
     'A': 'TP. Hồ Chí Minh',
     'B': 'Đà Nẵng',
@@ -124,7 +121,11 @@ def simulate_orders(db_url: str, num_orders: int = 5, table_name: str = "sales_d
             df_new_orders = pd.DataFrame(new_orders)
             df_new_orders.to_sql(table_name, engine, if_exists='append', index=False)
             print(f"\nThành công! Đã thêm {len(new_orders)} đơn hàng mới vào bảng '{table_name}'.")
-            print("Dashboard sẽ tự động cập nhật trong lần làm mới tiếp theo.")
+            try:
+                requests.get("http://127.0.0.1:8050/refresh")
+                print("Đã gửi yêu cầu làm mới dữ liệu đến dashboard.")
+            except requests.exceptions.RequestException as e:
+                print(f"Không thể kết nối đến dashboard để làm mới: {e}")
 
     except Exception as e:
         print(f"Đã xảy ra lỗi trong quá trình giả lập: {e}")

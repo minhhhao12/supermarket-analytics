@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import base64
 import io
+from flask import Flask, request
 
 from data_validator import DataValidator
 from data_processor import DataProcessor
@@ -16,16 +17,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import time
 import atexit
 
+server = Flask(__name__)
+
 app = dash.Dash(
     __name__,
+    server=server,
     external_stylesheets=[dbc.themes.LITERA, dbc.icons.FONT_AWESOME],
     suppress_callback_exceptions=True
 )
-app.title = "Supermarket Dashboard"
+app.title = "Supermarket Analytic"
 
-# ==========================================
-# GLOBAL INSTANCES AND DATA MANAGEMENT
-# ==========================================
 
 # Global AI Assistant instance
 global_ai_instance = AIAssistant()
@@ -37,7 +38,6 @@ db_connector = DatabaseConnector()
 # This will be read by a dcc.Interval callback to update the dcc.Store
 global_processed_df_json = None
 
-# Function to load and process data from DB
 def load_and_process_db_data():
     global global_processed_df_json
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Attempting to load data from database...")
@@ -69,6 +69,15 @@ scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 # ==========================================
+# FLASK ENDPOINT FOR DATA REFRESH
+# ==========================================
+@server.route('/refresh', methods=['GET'])
+def refresh_data():
+    print("Endpoint /refresh được gọi, đang tải lại dữ liệu...")
+    load_and_process_db_data()
+    return "Data refresh triggered", 200
+
+# ==========================================
 # CÁC THÀNH PHẦN GIAO DIỆN CHÍNH
 # ==========================================
 
@@ -96,12 +105,11 @@ navbar = dbc.Navbar(
     className="mb-4 shadow-sm",
 )
 
-# Tab: Data Validation
 tab_validation = dbc.Card(
     dbc.CardBody([
         html.Div([
-            html.H4([html.I(className="fa-solid fa-upload me-2"), "Tải lên & Kiểm tra dữ liệu"], className="text-primary mb-3"),
-            html.P("Hệ thống sẽ tự động phân tích và kiểm tra các lỗi logic trong dữ liệu bán hàng của bạn.", className="text-muted")
+            html.H4([html.I(className="fa-solid fa-upload me-2"), "Tải dữ liệu"], className="text-primary mb-3"),
+            html.P("Mời bạn tải dữ liệu vào đây!", className="text-muted")
         ]),
         dcc.Upload(
             id='upload-data',
@@ -260,6 +268,18 @@ tab_visualization = html.Div([
             dbc.CardHeader(html.H6([html.I(className="fa-solid fa-arrow-trend-up me-2"), "Dự báo Doanh thu 30 ngày (Linear Regression)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
             dbc.CardBody(dcc.Graph(id='fig-forecast-revenue', config={'displayModeBar': False}))
         ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
+    ], className="g-4"),
+
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-users-rectangle me-2"), "Phân tích Phân khúc Khách hàng"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-customer-segmentation', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
+
+        dbc.Col(dbc.Card([
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-circle-nodes me-2"), "Mối tương quan giữa các chỉ số (Heatmap)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardBody(dcc.Graph(id='fig-correlation', config={'displayModeBar': False}))
+        ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
     ], className="g-4")
 ])
 
@@ -268,12 +288,12 @@ app.layout = html.Div([
     # Lưu trữ dữ liệu ngầm trên trình duyệt
     dcc.Store(id='stored-data', data=global_processed_df_json), # Use data from database
     dcc.Store(id='chat-history', data=[
-        {"role": "assistant", "content": "Xin chào! Tôi là AI Assistant. Tôi có thể giúp gì cho bạn hôm nay?"}]),
+        {"role": "assistant", "content": "Xin chào! Tôi là trợ lý AI của bạn. Tôi có thể giúp gì cho bạn hôm nay?"}]),
 
     # Add dcc.Interval to trigger periodic updates to stored-data from the global variable
     dcc.Interval(
         id='interval-component',
-        interval=30*1000, # in milliseconds, update every 30 seconds
+        interval=5*1000, # in milliseconds, update every 5 seconds
         n_intervals=0
     ),
 
@@ -303,7 +323,7 @@ app.layout = html.Div([
 
     # NÚT GỌI AI ASSISTANT (Nổi ở góc phải dưới)
     html.Div(
-        dbc.Button([html.I(className="fa-solid fa-robot me-2 fs-5"), "AI Assistant"],
+        dbc.Button([html.I(className="fa-solid fa-robot me-2 fs-5"), "Trợ lý AI"],
                    id="btn-open-ai", color="info", className="rounded-pill shadow-lg text-white fw-bold px-4 py-2", size="lg",
                    style={"background": "linear-gradient(45deg, #0dcaf0, #0d6efd)", "border": "none"}),
         style={"position": "fixed", "bottom": "40px", "right": "40px", "zIndex": 1000}
@@ -343,7 +363,6 @@ app.layout = html.Div([
 # CALLBACKS (XỬ LÝ LOGIC TƯƠNG TÁC)
 # ==========================================
 
-
 # New callback to update stored-data from the global variable periodically
 @app.callback(
     Output('stored-data', 'data', allow_duplicate=True),
@@ -378,6 +397,9 @@ def process_upload(contents, filename):
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+
+        # Ghi dữ liệu vào database
+        write_success = db_connector.write_dataframe_to_table(df, "sales_data")
 
         # Chạy Validation
         validator = DataValidator(df)
@@ -419,11 +441,15 @@ def process_upload(contents, filename):
             style_cell={'padding': '10px', 'textAlign': 'left', 'fontFamily': 'inherit'},
             style_data={'borderBottom': '1px solid #f0f0f0'}
         )
-
+        db_message = ""
+        
         success_alert = dbc.Alert([
             html.I(className="fa-solid fa-file-csv me-2"),
-            f"Đã tải thành công: {filename}."
+            f"Đã tải thành công: {filename}. ",
+            html.Br(),
+            html.Span(db_message)
         ], color="info", className="mt-3 shadow-sm rounded-3")
+
 
         return df.to_json(date_format='iso', orient='split'), success_alert, table_ui, True, modal_title, val_ui
 
@@ -476,6 +502,7 @@ def update_dropdowns(json_data):
     Output('fig-rating-dist', 'figure'), Output('fig-rating-cat', 'figure'),
     Output('fig-branch-perf', 'figure'), Output('fig-customer-gender', 'figure'),
     Output('fig-shopping-hours', 'figure'), Output('fig-forecast-revenue', 'figure'),
+    Output('fig-customer-segmentation', 'figure'), Output('fig-correlation', 'figure'),
     Input('stored-data', 'data'),
     Input('filter-city', 'value'), Input('filter-product', 'value'),
     Input('filter-gender', 'value'), Input('filter-customer', 'value'), Input('filter-date', 'date'),
@@ -484,7 +511,7 @@ def update_dropdowns(json_data):
 )
 def update_dashboard(json_data, cities, products, genders, customers, date, c1, c2, c3, c4):
     if json_data is None:
-        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}
+        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
 
     df = pd.read_json(io.StringIO(json_data), orient='split')
     processor=DataProcessor(df)
@@ -502,7 +529,7 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
     #     df = df[df['Date'].dt.date == pd.to_datetime(date).date()]
 
     if df.empty:
-        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}
+        return "$0", "$0", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
 
     # KPIs
     kpi_tot = f"${df['Sales'].sum():,.0f}"
@@ -519,6 +546,8 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
     fig5 = builder.branch_performance_chart()
     fig6 = builder.customer_gender_revenue_chart()
     fig7 = builder.shopping_hours_chart()
+    fig9 = builder.customer_segmentation_chart()
+    fig10 = builder.correlation_heatmap_chart()
 
     # Cần kiểm tra xem có đủ dữ liệu lịch sử để dự báo hay không
     try:
@@ -530,7 +559,7 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
         fig8.add_annotation(text="Không đủ dữ liệu để dự báo", x=0.5, y=0.5, showarrow=False)
 
     # Styling chung cho tất cả các biểu đồ
-    for fig in [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8]:
+    for fig in [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10]:
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
@@ -540,7 +569,7 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
-    return kpi_tot, kpi_avg, fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8
+    return kpi_tot, kpi_avg, fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10
 
 
 # 4. Logic Đóng/Mở Trợ lý AI
@@ -591,11 +620,12 @@ def manage_chat(n_submit, n_clear, user_text, history, json_data):
             try:
                 # Chat với API
                 ai_response = global_ai_instance.chat_with_data(user_text)
+                history.append({"role": "assistant", "content": ai_response})
+                return history, render_chat(history), ""
             except Exception as e:
                 ai_response = f"Lỗi AI: {str(e)}"
-
-        history.append({"role": "assistant", "content": ai_response})
-        return history, render_chat(history), ""
+                history.append({"role": "assistant", "content": ai_response})
+                return history, render_chat(history), ""
 
     return history, render_chat(history), dash.no_update
 
@@ -614,25 +644,57 @@ def show_chat_on_open(is_open, history):
 
 
 def render_chat(history):
-    """Hàm tạo giao diện HTML cho list tin nhắn"""
+    """Hàm tạo giao diện chat TỐI GIẢN - HIỆN ĐẠI (Không màu xám, Không avatar)"""
     chat_bubbles = []
+
     for msg in history:
         is_user = msg["role"] == "user"
         align = "end" if is_user else "start"
-        bg_color = "#0d6efd" if is_user else "#ffffff"
-        text_color = "white" if is_user else "#212529"
-        border = "none" if is_user else "1px solid #dee2e6"
+
+        # --- MÀU SẮC RỰC RỠ & SẠCH SẼ ---
+        if is_user:
+            # Gradient Xanh - Tím Neon thời thượng cho User
+            bg_style = "linear-gradient(135deg, #007aff, #7c4dff)"
+            text_color = "#ffffff"
+            # Bo góc gọn hơn ở góc dưới bên phải
+            border_radius = "20px 20px 4px 20px"
+            box_shadow = "0 4px 12px rgba(0, 122, 255, 0.15)"
+            border_style = "none"
+        else:
+
+            bg_style = "#ffffff"
+            text_color = "#0f172a"
+
+            border_radius = "20px 20px 20px 4px"
+            box_shadow = "0 4px 12px rgba(0, 0, 0, 0.03)"
+            border_style = "1px solid #e2e8f0"
+
         chat_bubbles.append(
             html.Div(
-                html.Div(dcc.Markdown(msg["content"]), style={
-                    "display": "inline-block", "padding": "12px 18px",
-                    "borderRadius": "20px", "backgroundColor": bg_color, "color": text_color,
-                    "border": border, "boxShadow": "0 2px 5px rgba(0,0,0,0.05)",
-                    "maxWidth": "85%", "marginBottom": "12px", "textAlign": "left",
-                    "borderBottomRightRadius": "5px" if is_user else "20px",
-                    "borderBottomLeftRadius": "20px" if is_user else "5px",
-                }),
-                style={"textAlign": align, "width": "100%"}
+                html.Div(
+                    dcc.Markdown(msg["content"], className="markdown-chat-content"),
+                    style={
+                        "padding": "12px 18px",
+                        "borderRadius": border_radius,
+                        "background": bg_style,
+                        "color": text_color,
+                        "maxWidth": "75%",
+                        "fontSize": "15px",
+                        "lineHeight": "1.6",
+                        "border": border_style,
+                        "boxShadow": box_shadow,
+                        "wordBreak": "break-word",
+                        "textAlign": "left"
+                    }
+                ),
+                style={
+                    "textAlign": align,
+                    "width": "100%",
+                    "marginBottom": "16px",
+                    "display": "flex",
+                    "justifyContent": "flex-end" if is_user else "flex-start",
+                    "animation": "fadeIn 0.25s ease-out forwards"
+                }
             )
         )
     return chat_bubbles

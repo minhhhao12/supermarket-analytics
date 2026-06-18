@@ -8,7 +8,7 @@ class DatabaseConnector:
         load_dotenv()
         self.db_url = os.getenv("DATABASE_URL")
         if not self.db_url:
-            raise ValueError("DATABASE_URL not found in .env file")
+            raise ValueError("Không tìm thấy file .env")
 
         if self.db_url.startswith("sqlite:///"):
             db_file = self.db_url[len("sqlite:///"):]
@@ -24,9 +24,18 @@ class DatabaseConnector:
             query = text(f"SELECT * FROM {table_name}")
             with self.engine.connect() as connection:
                 df = pd.read_sql(query, connection)
-            print(f"Successfully fetched {len(df)} rows from {table_name}")
+            print(f"Đọc thành công {len(df)} dòng từ database {table_name}")
             return df
         except Exception as e:
-            print(f"Error fetching data from database: {e}")
+            print(f"Lỗi khi đọc dữ liệu: {e}")
             return pd.DataFrame()
 
+    def write_dataframe_to_table(self, df: pd.DataFrame, table_name: str):
+        try:
+            with self.engine.connect() as connection:
+                df.to_sql(table_name, connection, if_exists='replace', index=False)
+            print(f"Ghi thành công {len(df)} dòng vào bảng '{table_name}'.")
+            return True
+        except Exception as e:
+            print(f"Lỗi khi ghi dữ liệu vào bảng '{table_name}': {e}")
+            return False

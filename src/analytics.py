@@ -1,6 +1,8 @@
 import pandas as pd
 from pandas import DataFrame
+from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
 
 
 class Analytics:
@@ -169,10 +171,31 @@ class Analytics:
         )
         return forecast_df
 
+    # Sử dụng thuật toán K-Means để phân cụm hành vi mua sắm của khách hàng
+    # dựa trên số lượng đơn hàng và tổng chi tiêu của họ.
     def advanced_customer_segmentation(self) -> pd.DataFrame:
-        """
-        Sử dụng thuật toán K-Means để phân cụm hành vi mua sắm của khách hàng
-        dựa trên số lượng đơn hàng và tổng chi tiêu của họ.
-        """
+        # 1. Trích xuất đặc trưng hành vi khách hàng từ Invoice ID
+        features = self.df.groupby(['Customer type', 'Gender']).agg(
+            Total_Sales=('Sales', 'sum'),
+            Total_Orders=('Invoice ID', 'count'),
+            Avg_Quantity=('Quantity', 'mean')
+        ).reset_index()
 
-        pass
+        # 2. Chuẩn hóa dữ liệu trước khi chạy K-Means
+        scaler=StandardScaler()
+        scaled_features = scaler.fit_transform(features[['Total_Sales', 'Total_Orders', 'Avg_Quantity']])
+
+        # 3. Chạy thuật toán K-Means với k=3 (3 nhóm khách hàng)
+        kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+        features['Cluster'] = kmeans.fit_predict(scaled_features)
+
+        # Đổi tên cluster thành cho dễ hiểu
+        cluster_mapping={0:'Khách hàng Phổ thông', 1:'Khách hàng Tiềm năng', 2:'Khách hàng VIP'}
+        features['Customer_Segment'] = features['Cluster'].map(cluster_mapping)
+        return features.sort_values(by='Total_Sales', ascending=False)
+
+    def calculate_correlation_matrix(self) -> pd.DataFrame:
+        """Tính toán ma trận tương quan giữa các cột số quan trọng."""
+        numeric_cols = ['Unit price', 'Quantity', 'Tax 5%', 'Sales', 'cogs', 'gross income', 'Rating']
+        corr_matrix = self.df[numeric_cols].corr()
+        return corr_matrix
