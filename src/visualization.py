@@ -122,11 +122,28 @@ class ChartBuilder:
     
     # 8. Dự báo doanh thu 30 ngày (Dạng đường)
     def forecast_revenue_chart(self):
+        # 1. Gọi hàm dự báo bằng Prophet (hàm này trả về DataFrame có cột 'Date' và 'Forecast_Sales')
         df = self.analytics.forecast_next_month_revenue()
-        fig = px.line(df, x='Day', y='Forecast_Sales', markers=True,
-                      title="Dự báo Doanh thu 30 ngày tới (Linear Regression)",
-                      labels={"Day": "Ngày", "Forecast_Sales": "Doanh thu dự báo (VNĐ)"})
+
+        # 2. Vẽ biểu đồ đường với trục X là 'Date' (ngày tháng thực tế)
+        fig = px.line(
+            df,
+            x='Day',
+            y='Forecast_Sales',
+            markers=True,
+            title="Dự báo Doanh thu 30 ngày tới (Mô hình Prophet)",
+            labels={"Date": "Ngày thực tế", "Forecast_Sales": "Doanh thu dự báo (VNĐ)"}
+        )
+
+        # 3. Định dạng đường vẽ (màu xanh lá nhạt hơn một chút hoặc giữ nguyên tùy bạn, nét đứt)
         fig.update_traces(line_color='#28a745', line_dash="dot")
+
+        # 4. Tùy chỉnh thêm để trục X hiển thị ngày tháng đẹp hơn (xoay góc chữ nếu cần)
+        fig.update_layout(
+            xaxis_tickangle=-45,
+            hovermode="x unified"  # Khi rê chuột vào sẽ hiện thông tin ngày và doanh thu rõ ràng
+        )
+
         return fig
 
     # 9. Biểu đồ Phân khúc Khách hàng

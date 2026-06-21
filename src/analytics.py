@@ -3,7 +3,7 @@ from pandas import DataFrame
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-
+from prophet import Prophet
 
 class Analytics:
     def __init__(self,df:DataFrame):
@@ -150,26 +150,19 @@ class Analytics:
         return summary
 
     #Dự báo doanh thu 30 ngày tiếp theo
-    def forecast_next_month_revenue(self)->pd.DataFrame:
-        df_daily_revenue=self.df.groupby(['Year','Month','Day'])['Sales'].sum().reset_index()
-        df_daily_revenue['Day_Index']=df_daily_revenue.index
-        X=df_daily_revenue[['Day_Index']]
-        y=df_daily_revenue['Sales']
-        model=LinearRegression()
-        model.fit(X,y)
+    def forecast_next_month_revenue(self):
+        df_daily = self.df.groupby(['Year', 'Month', 'Day'])['Sales'].sum().reset_index()
+        df_daily['ds'] = pd.to_datetime(df_daily[['Year', 'Month', 'Day']])
+        df_daily = df_daily.rename(columns={'Sales': 'y'})[['ds', 'y']]
 
-        last_index=df_daily_revenue['Day_Index'].max()
-        future_df=pd.DataFrame({
-            'Day_Index':range(last_index+1,last_index+31)
-        })
-        forecast_sale=model.predict(future_df)
-        forecast_df=pd.DataFrame(
-            {
-                "Day": range(1, 31),
-                "Forecast_Sales": forecast_sale.round(2),
-            }
-        )
-        return forecast_df
+        model = Prophet(yearly_seasonality=True, weekly_seasonality=True)
+        model.fit(df_daily)
+
+        future = model.make_future_dataframe(periods=30)
+        forecast = model.predict(future)
+
+        # Lấy ra 30 ngày cuối cùng dự báo
+        return forecast[['ds', 'yhat']].tail(30).rename(columns={'ds': 'Day', 'yhat': 'Forecast_Sales'})
 
     # Sử dụng thuật toán K-Means để phân cụm hành vi mua sắm của khách hàng
     # dựa trên số lượng đơn hàng và tổng chi tiêu của họ.

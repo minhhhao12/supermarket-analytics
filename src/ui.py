@@ -28,14 +28,8 @@ app = dash.Dash(
 app.title = "Supermarket Analytic"
 
 
-# Global AI Assistant instance
 global_ai_instance = AIAssistant()
-
-# Global Database Connector instance
 db_connector = DatabaseConnector()
-
-# Global variable to hold processed data from DB, updated by scheduler
-# This will be read by a dcc.Interval callback to update the dcc.Store
 global_processed_df_json = None
 
 def load_and_process_db_data():
@@ -56,20 +50,16 @@ def load_and_process_db_data():
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error loading data from database: {e}")
         global_processed_df_json = None # Clear data on error
 
-# Initial load of data when the app starts
 load_and_process_db_data()
 
-# Setup APScheduler for periodic background updates
 scheduler = BackgroundScheduler()
-# Schedule to run load_and_process_db_data every 5 minutes (adjust as needed)
 scheduler.add_job(load_and_process_db_data, 'interval', minutes=5)
 scheduler.start()
 
-# Ensure scheduler shuts down when the app exits
 atexit.register(lambda: scheduler.shutdown())
 
 # ==========================================
-# FLASK ENDPOINT FOR DATA REFRESH
+# FLASK ENDPOINT DATA REFRESH
 # ==========================================
 @server.route('/refresh', methods=['GET'])
 def refresh_data():
@@ -265,7 +255,7 @@ tab_visualization = html.Div([
         ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4"),
 
         dbc.Col(dbc.Card([
-            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-arrow-trend-up me-2"), "Dự báo Doanh thu 30 ngày (Linear Regression)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
+            dbc.CardHeader(html.H6([html.I(className="fa-solid fa-arrow-trend-up me-2"), "Dự báo Doanh thu 30 ngày (Prophet)"], className="mb-0 pt-2"), className="bg-white border-bottom-0 pb-0"),
             dbc.CardBody(dcc.Graph(id='fig-forecast-revenue', config={'displayModeBar': False}))
         ], className="border-0 shadow-sm rounded-3 h-100"), width=12, lg=6, className="mb-4")
     ], className="g-4"),
@@ -321,7 +311,6 @@ app.layout = html.Div([
         size="lg",
     ),
 
-    # NÚT GỌI AI ASSISTANT (Nổi ở góc phải dưới)
     html.Div(
         dbc.Button([html.I(className="fa-solid fa-robot me-2 fs-5"), "Trợ lý AI"],
                    id="btn-open-ai", color="info", className="rounded-pill shadow-lg text-white fw-bold px-4 py-2", size="lg",
@@ -336,7 +325,6 @@ app.layout = html.Div([
                      style={"height": "70vh", "overflowY": "auto", "padding": "15px", "backgroundColor": "#f8f9fa",
                             "borderRadius": "15px", "marginBottom": "20px", "boxShadow": "inset 0 0 10px rgba(0,0,0,0.05)"}),
 
-            # Thêm Loading component bao quanh InputGroup
             dcc.Loading(
                 id="loading-chat",
                 type="circle",
@@ -548,17 +536,8 @@ def update_dashboard(json_data, cities, products, genders, customers, date, c1, 
     fig7 = builder.shopping_hours_chart()
     fig9 = builder.customer_segmentation_chart()
     fig10 = builder.correlation_heatmap_chart()
+    fig8 = builder.forecast_revenue_chart()
 
-    # Cần kiểm tra xem có đủ dữ liệu lịch sử để dự báo hay không
-    try:
-        fig8 = builder.forecast_revenue_chart()
-    except Exception:
-        # Trong trường hợp không đủ dữ liệu (ví dụ đã filter quá nhỏ)
-        import plotly.graph_objects as go
-        fig8 = go.Figure()
-        fig8.add_annotation(text="Không đủ dữ liệu để dự báo", x=0.5, y=0.5, showarrow=False)
-
-    # Styling chung cho tất cả các biểu đồ
     for fig in [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10]:
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
@@ -629,8 +608,6 @@ def manage_chat(n_submit, n_clear, user_text, history, json_data):
 
     return history, render_chat(history), dash.no_update
 
-
-# 6. Hiển thị Lịch sử Chat khi mở Offcanvas
 @app.callback(
     Output('chat-display', 'children', allow_duplicate=True),
     Input('offcanvas-ai', 'is_open'),

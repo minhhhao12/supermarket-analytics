@@ -20,16 +20,12 @@ class AIAssistant:
 
         if not self.api_key:
             raise ValueError('Không tìm thấy API Key')
-        #Khởi tạo client kết nối (ví dụ: genai.Client(api_key=...))
         self.client=genai.Client(api_key=self.api_key)
         self.model='gemma-4-31b-it'
         self.analytics=analytics_instance
         self.chat_session=None
 
     def _call_api(self, system_prompt: str, user_prompt: str,tools:list=None)-> GenerateContentResponse | None:
-        """
-        Hàm nội bộ: Gửi request lên Gemini API và trả về đối tượng Response gốc.
-        """
         try:
             config = genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
